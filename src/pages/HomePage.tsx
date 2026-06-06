@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Flame, Settings, BookOpen, Globe, Beaker, Library } from 'lucide-react';
+import { Play, Flame, Settings, BookOpen, Globe, Beaker, Library, RefreshCw } from 'lucide-react';
 import { Storage, type UserData } from '../lib/storage';
 
 export default function HomePage() {
@@ -16,6 +16,27 @@ export default function HomePage() {
 
   const expNeeded = userData.level * 50;
   const expPercent = Math.min(100, Math.round((userData.exp / expNeeded) * 100));
+
+  let weakestTopic: { topic: string; subject: string; accuracy: number } | null = null;
+  if (userData.detailedStats) {
+    const sorted = Object.keys(userData.detailedStats)
+      .map(key => {
+        const [subject, topic] = key.split(':');
+        const stat = userData.detailedStats[key];
+        return {
+          subject,
+          topic,
+          accuracy: stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : 0,
+          total: stat.total
+        };
+      })
+      .filter(t => t.total >= 2)
+      .sort((a, b) => a.accuracy - b.accuracy);
+
+    if (sorted.length > 0 && sorted[0].accuracy < 80) {
+      weakestTopic = sorted[0];
+    }
+  }
 
   const subjects = [
     { id: 'math', name: '数学', icon: <BookOpen size={24} color="var(--primary)" />, color: 'rgba(79, 70, 229, 0.1)' },
@@ -69,6 +90,31 @@ export default function HomePage() {
           <div style={{ width: `${expPercent}%`, height: '100%', background: 'linear-gradient(90deg, var(--primary-light), var(--primary))', borderRadius: '6px', transition: 'width 0.5s ease' }}></div>
         </div>
       </div>
+
+      {weakestTopic && (
+        <div className="animate-slide-up" style={{ marginBottom: '2rem' }}>
+          <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <RefreshCw size={22} color="var(--accent)" /> 弱点克服
+          </h3>
+          <Link
+            to={`/drill?subject=${encodeURIComponent(weakestTopic.subject)}&topic=${encodeURIComponent(weakestTopic.topic)}`}
+            style={{ textDecoration: 'none', color: 'inherit' }}
+          >
+            <div className="glass-panel" style={{ padding: '1.25rem', border: '2px solid var(--accent)', background: 'rgba(245, 158, 11, 0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 800, marginBottom: '0.25rem' }}>苦手発見！ {weakestTopic.subject}</div>
+                  <h4 style={{ margin: 0, fontSize: '1.25rem' }}>{weakestTopic.topic}</h4>
+                  <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: 'var(--text-muted)' }}>正答率 {weakestTopic.accuracy}% をアップさせよう</p>
+                </div>
+                <div className="btn" style={{ background: 'var(--accent)', color: 'white', padding: '0.5rem 1rem', borderRadius: '1rem' }}>
+                  再挑戦
+                </div>
+              </div>
+            </div>
+          </Link>
+        </div>
+      )}
 
       <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>教科を選ぶ</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

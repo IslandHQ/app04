@@ -1,10 +1,17 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { Clock, CheckSquare, Target } from 'lucide-react';
-import { Storage, type DailyRecord, type UserData } from '../lib/storage';
+import { Clock, CheckSquare, Target, AlertTriangle } from 'lucide-react';
+import { Storage, type UserData } from '../lib/storage';
+
+interface ChartData {
+  name: string;
+  time: number;
+  totalQuestions: number;
+  correctAnswers: number;
+}
 
 export default function DashboardPage() {
-  const [records, setRecords] = useState<DailyRecord[]>([]);
+  const [records, setRecords] = useState<ChartData[]>([]);
   const [userData, setUserData] = useState<UserData | null>(null);
 
   useEffect(() => {
@@ -13,7 +20,7 @@ export default function DashboardPage() {
     
     // 最近7日間のデータを作成
     const today = new Date();
-    const last7Days = Array.from({ length: 7 }).map((_, i) => {
+    const last7Days: ChartData[] = Array.from({ length: 7 }).map((_, i) => {
       const d = new Date(today);
       d.setDate(d.getDate() - (6 - i));
       const dateStr = d.toISOString().split('T')[0];
@@ -39,15 +46,36 @@ export default function DashboardPage() {
   const accuracy = totalQ > 0 ? Math.round((totalC / totalQ) * 100) : 0;
 
   let statsList: { subject: string; accuracy: number; total: number }[] = [];
-  if (userData && userData.topicStats) {
-    statsList = Object.keys(userData.topicStats).map(subject => {
-      const stat = userData.topicStats[subject];
-      return {
-        subject,
-        accuracy: stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : 0,
-        total: stat.total
-      };
-    }).sort((a, b) => b.accuracy - a.accuracy);
+  let weakTopics: { topic: string; subject: string; accuracy: number }[] = [];
+
+  if (userData) {
+    if (userData.topicStats) {
+      statsList = Object.keys(userData.topicStats).map(subject => {
+        const stat = userData.topicStats[subject];
+        return {
+          subject,
+          accuracy: stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : 0,
+          total: stat.total
+        };
+      }).sort((a, b) => b.accuracy - a.accuracy);
+    }
+
+    if (userData.detailedStats) {
+      weakTopics = Object.keys(userData.detailedStats)
+        .map(key => {
+          const [subject, topic] = key.split(':');
+          const stat = userData.detailedStats[key];
+          return {
+            subject,
+            topic,
+            accuracy: stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : 0,
+            total: stat.total
+          };
+        })
+        .filter(t => t.total >= 3 && t.accuracy < 70) // 3回以上解いて正答率70%未満
+        .sort((a, b) => a.accuracy - b.accuracy)
+        .slice(0, 3);
+    }
   }
 
   return (
@@ -94,6 +122,31 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {weakTopics.length > 0 && (
+        <div className="glass-panel" style={{ padding: '1.5rem', marginTop: '2rem', borderLeft: '4px solid #ef4444' }}>
+          <h3 style={{ fontSize: '1.125rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444' }}>
+            <AlertTriangle size={20} /> 苦手分野の分析
+          </h3>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+            最近の回答データから、重点的な復習が必要な単元を特定しました。
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {weakTopics.map((wt, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(239, 68, 68, 0.05)', padding: '0.75rem', borderRadius: '0.5rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 600 }}>{wt.subject}</div>
+                  <div style={{ fontWeight: 700 }}>{wt.topic}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>正答率</div>
+                  <div style={{ fontWeight: 800, color: '#ef4444' }}>{wt.accuracy}%</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="glass-panel" style={{ padding: '1.5rem', marginTop: '2rem' }}>
         <h3 style={{ fontSize: '1.125rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

@@ -19,6 +19,7 @@ export interface UserData {
   level: number;
   exp: number;
   topicStats: Record<string, { total: number; correct: number }>;
+  detailedStats: Record<string, { total: number; correct: number }>;
 }
 
 const DEFAULT_SETTINGS: AISettings = {
@@ -34,7 +35,8 @@ const DEFAULT_USER_DATA: UserData = {
   lastStudyDate: '',
   level: 1,
   exp: 0,
-  topicStats: {}
+  topicStats: {},
+  detailedStats: {}
 };
 
 export const Storage = {
@@ -54,6 +56,7 @@ export const Storage = {
     if (parsed.level === undefined) parsed.level = 1;
     if (parsed.exp === undefined) parsed.exp = 0;
     if (!parsed.topicStats) parsed.topicStats = {};
+    if (!parsed.detailedStats) parsed.detailedStats = {};
     return parsed;
   },
   
@@ -70,7 +73,7 @@ export const Storage = {
     localStorage.setItem('daily_records', JSON.stringify(records));
   },
   
-  addStudyResult(subject: string, minutes: number, isCorrect: boolean): { gainedExp: number, leveledUp: boolean } {
+  addStudyResult(subject: string, topic: string, minutes: number, isCorrect: boolean): { gainedExp: number, leveledUp: boolean } {
     const today = new Date().toISOString().split('T')[0];
     const records = this.getDailyRecords();
     let todayRecord = records.find(r => r.date === today);
@@ -114,6 +117,14 @@ export const Storage = {
     }
     userData.topicStats[subject].total += 1;
     if (isCorrect) userData.topicStats[subject].correct += 1;
+
+    // Update Detailed Stats
+    const topicKey = `${subject}:${topic}`;
+    if (!userData.detailedStats[topicKey]) {
+      userData.detailedStats[topicKey] = { total: 0, correct: 0 };
+    }
+    userData.detailedStats[topicKey].total += 1;
+    if (isCorrect) userData.detailedStats[topicKey].correct += 1;
 
     this.saveUserData(userData);
 

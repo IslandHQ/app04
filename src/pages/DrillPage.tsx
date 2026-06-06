@@ -1,53 +1,56 @@
 import { useState, useEffect, useRef } from 'react';
-import { Lightbulb, CheckCircle2, XCircle, ArrowRight, Bot, Loader2 } from 'lucide-react';
+import { Lightbulb, CheckCircle2, XCircle, ArrowRight, Bot, Loader2, MessageSquare } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { generateDrills, generateHint, type DrillQuestion } from '../lib/ai';
+import { generateDrills, gradeAnswer, type DrillQuestion } from '../lib/ai';
 import { Storage } from '../lib/storage';
 
 export default function DrillPage() {
   const [questionQueue, setQuestionQueue] = useState<DrillQuestion[]>([]);
   const [question, setQuestion] = useState<DrillQuestion | null>(null);
   
-  const [answer, setAnswer] = useState('');
   const [isAnswered, setIsAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [feedback, setFeedback] = useState('');
   
-  const [showHint, setShowHint] = useState(false);
-  const [hintText, setHintText] = useState('');
+  const [hintLevel, setHintLevel] = useState(0); // 0: none, 1: hint1, 2: hint2
   
   const [isLoading, setIsLoading] = useState(true);
-  const [isHintLoading, setIsHintLoading] = useState(false);
+  const [isGrading, setIsGrading] = useState(false);
   const isFetchingRef = useRef(false);
   
   const [expResult, setExpResult] = useState<{gainedExp: number, leveledUp: boolean} | null>(null);
 
-  const startTimeRef = useRef<number>(Date.now());
+  const startTimeRef = useRef<number>(0);
   const initialized = useRef(false);
   const navigate = useNavigate();
   
   const [searchParams] = useSearchParams();
   const subjectParam = searchParams.get('subject') || '数学';
+  const topicParam = searchParams.get('topic');
 
   const fetchQuestions = async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
-    
-    const userData = Storage.getUserData();
-    let topic = "ランダムな基礎計算や方程式";
-    if (subjectParam === '英語') topic = "英単語や基本文法（和訳・英訳）";
-    if (subjectParam === '理科') topic = "理科の基礎知識（一問一答）";
-    if (subjectParam === '社会') topic = "歴史や地理の基礎（一問一答）";
-    if (subjectParam === '国語') topic = "漢字の読み書きや四字熟語、ことわざ";
+    let topic = topicParam || "ランダムな基礎計算や方程式";
+    if (!topicParam) {
+      if (subjectParam === '英語') topic = "英単語や基本文法（和訳・英訳）";
+      if (subjectParam === '理科') topic = "理科の基礎知識（一問一答）";
+      if (subjectParam === '社会') topic = "歴史や地理の基礎（一問一答）";
+      if (subjectParam === '国語') topic = "漢字の読み書きや四字熟語、ことわざ";
+    }
 
-    const qs = await generateDrills(`${userData.grade} ${subjectParam}`, topic, 3);
+    const qs = await generateDrills(subjectParam, topic, 3);
     
     if (qs.length === 0 && !Storage.getSettings().apiKey) {
       qs.push({
         subject: subjectParam,
         topic: "API未設定",
         questionText: "APIキーが設定されていません。設定画面でキーを登録してください。",
+        choices: ["設定画面へ", "キャンセル", "ヘルプ", "閉じる"],
         correctAnswer: "",
-        explanation: "APIキーを設定すると問題が自動生成されます。"
+        explanation: "APIキーを設定すると問題が自動生成されます。",
+        hint1: "設定画面を確認してください。",
+        hint2: "APIキーが必要です。"
       });
     }
 
@@ -65,48 +68,44 @@ export default function DrillPage() {
   // キューから問題を取り出す
   useEffect(() => {
     if (!question && questionQueue.length > 0) {
-      setQuestion(questionQueue[0]);
+      const nextQ = questionQueue[0];
+      setQuestion(nextQ);
       setQuestionQueue(prev => prev.slice(1));
       startTimeRef.current = Date.now();
       setIsLoading(false);
     }
   }, [question, questionQueue]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!answer || !question) return;
+  const handleSubmit = async (selectedAnswer: string) => {
+    if (!question || isAnswered) return;
+    
+    setIsGrading(true);
+    
+    // クロスモデル採点
+    const result = await gradeAnswer(question, selectedAnswer);
     
     setIsAnswered(true);
-    
-    // 正誤判定
-    const normalizedUser = answer.trim().toLowerCase().replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
-    const normalizedCorrect = question.correctAnswer.trim().toLowerCase().replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
-    
-    const correct = normalizedUser === normalizedCorrect;
-    setIsCorrect(correct);
+    setIsCorrect(result.isCorrect);
+    setFeedback(result.feedback);
+    setIsGrading(false);
     
     // 学習記録の保存
     const timeSpentMs = Date.now() - startTimeRef.current;
     const timeSpentMin = Math.max(1, Math.round(timeSpentMs / 60000));
-    const result = Storage.addStudyResult(subjectParam, timeSpentMin, correct);
-    setExpResult(result);
+    const studyRecordResult = Storage.addStudyResult(subjectParam, question.topic, timeSpentMin, result.isCorrect);
+    setExpResult(studyRecordResult);
   };
 
-  const handleGetHint = async () => {
+  const handleGetHint = () => {
     if (!question) return;
-    setShowHint(true);
-    setIsHintLoading(true);
-    const hint = await generateHint(question, answer || "わからない");
-    setHintText(hint);
-    setIsHintLoading(false);
+    setHintLevel(prev => Math.min(prev + 1, 2));
   };
 
   const handleNext = () => {
-    setAnswer('');
     setIsAnswered(false);
     setIsCorrect(false);
-    setShowHint(false);
-    setHintText('');
+    setFeedback('');
+    setHintLevel(0);
     setExpResult(null);
     setQuestion(null); // useEffectによって次の問題がキューから自動的に取り出される
     
@@ -134,26 +133,22 @@ export default function DrillPage() {
       </header>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center', marginBottom: '2rem' }}>
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>次の問題を解きましょう</h2>
-          <p style={{ fontSize: '1.75rem', fontWeight: 800, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{question.questionText}</p>
+        <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center', marginBottom: '1.5rem' }}>
+          <h2 style={{ fontSize: '1.1rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>次の問題を解きましょう</h2>
+          <p style={{ fontSize: '1.5rem', fontWeight: 800, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{question.questionText}</p>
         </div>
 
-        {showHint && (
-          <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem', marginBottom: '2rem', borderLeft: '4px solid var(--accent)' }}>
+        {hintLevel > 0 && (
+          <div className="glass-panel animate-fade-in" style={{ padding: '1.25rem', marginBottom: '1.5rem', borderLeft: '4px solid var(--accent)', background: 'rgba(245, 158, 11, 0.05)' }}>
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-              <Bot color="var(--accent)" size={24} style={{ marginTop: '0.25rem' }} />
+              <Bot color="var(--accent)" size={20} style={{ marginTop: '0.25rem' }} />
               <div>
-                <h4 style={{ margin: 0, color: 'var(--accent)', marginBottom: '0.5rem' }}>AIチューターからのヒント</h4>
-                {isHintLoading ? (
-                  <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Loader2 className="animate-spin" size={16} /> ヒントを考え中...
-                  </p>
-                ) : (
-                  <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: 1.5 }}>
-                    {hintText}
-                  </p>
-                )}
+                <h4 style={{ margin: 0, color: 'var(--accent)', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
+                  AIヒント ({hintLevel}/2)
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: 1.5 }}>
+                  {hintLevel === 1 ? question.hint1 : question.hint2}
+                </p>
               </div>
             </div>
           </div>
@@ -161,31 +156,50 @@ export default function DrillPage() {
 
         <div style={{ marginTop: 'auto' }}>
           {!isAnswered ? (
-            <form onSubmit={handleSubmit}>
-              <input 
-                type="text" 
-                className="input-field" 
-                placeholder="答えを入力..." 
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                style={{ fontSize: '1.25rem', textAlign: 'center', marginBottom: '1rem', padding: '1rem' }}
-                autoFocus
-              />
-              <div style={{ display: 'flex', gap: '1rem' }}>
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                {question.choices.map((choice, idx) => (
+                  <button
+                    key={idx}
+                    className="btn"
+                    style={{
+                      padding: '1.25rem 1rem',
+                      background: 'white',
+                      border: '2px solid var(--primary-light)',
+                      color: 'var(--primary)',
+                      fontWeight: 700,
+                      fontSize: '1rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: 'var(--shadow-sm)'
+                    }}
+                    onClick={() => handleSubmit(choice)}
+                    disabled={isGrading}
+                  >
+                    {choice}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
                 <button 
                   type="button" 
                   className="btn btn-secondary" 
-                  style={{ flex: 1 }}
+                  style={{ gap: '0.5rem' }}
                   onClick={handleGetHint}
-                  disabled={showHint || isHintLoading}
+                  disabled={hintLevel >= 2 || isGrading}
                 >
-                  <Lightbulb size={20} /> ヒント
-                </button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>
-                  解答する
+                  <Lightbulb size={18} /> {hintLevel === 0 ? 'ヒントを見る' : 'さらにヒントを見る'}
                 </button>
               </div>
-            </form>
+
+              {isGrading && (
+                <div style={{ textAlign: 'center', marginTop: '1.5rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                  <Loader2 className="animate-spin" size={18} /> AIが回答を精査中...
+                </div>
+              )}
+            </div>
           ) : (
             <div className="glass-panel animate-slide-up" style={{ 
               padding: '2rem', 
@@ -194,34 +208,37 @@ export default function DrillPage() {
             }}>
               {isCorrect ? (
                 <>
-                  <CheckCircle2 size={64} color="var(--secondary)" style={{ margin: '0 auto 0.5rem' }} />
-                  <h2 style={{ color: 'var(--secondary)', margin: 0 }}>大正解！</h2>
+                  <CheckCircle2 size={56} color="var(--secondary)" style={{ margin: '0 auto 0.5rem' }} />
+                  <h2 style={{ color: 'var(--secondary)', margin: '0 0 0.5rem 0' }}>正解です！</h2>
                 </>
               ) : (
                 <>
-                  <XCircle size={64} color="#ef4444" style={{ margin: '0 auto 0.5rem' }} />
-                  <h2 style={{ color: '#ef4444', marginBottom: '1rem' }}>おしい！</h2>
-                  <p style={{ marginBottom: '1rem' }}>正解は <strong>{question.correctAnswer}</strong> です。</p>
+                  <XCircle size={56} color="#ef4444" style={{ margin: '0 auto 0.5rem' }} />
+                  <h2 style={{ color: '#ef4444', marginBottom: '0.5rem' }}>おしい！</h2>
+                  <p style={{ marginBottom: '1rem' }}>正解は <strong>{question.correctAnswer}</strong> でした。</p>
                 </>
               )}
               
+              <div style={{ background: 'var(--bg-gradient-start)', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1.5rem', textAlign: 'left', borderLeft: '4px solid var(--primary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: 'var(--primary)' }}>
+                  <MessageSquare size={18} />
+                  <strong style={{ fontSize: '0.9rem' }}>AIからの講評:</strong>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: 1.6 }}>{feedback || question.explanation}</p>
+              </div>
+
               {expResult && (
-                <div style={{ background: 'var(--bg-gradient-start)', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1.5rem', marginTop: '1rem' }}>
-                  <p style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent)' }}>
-                    ✨ +{expResult.gainedExp} EXP 獲得！ ✨
+                <div style={{ background: 'rgba(79, 70, 229, 0.05)', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1.5rem' }}>
+                  <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--accent)' }}>
+                    ✨ +{expResult.gainedExp} EXP 獲得！
                   </p>
                   {expResult.leveledUp && (
-                    <p style={{ margin: '0.5rem 0 0 0', fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)', animation: 'pulse-glow 2s infinite' }}>
-                      🎉 レベルアップしました！ 🎉
+                    <p style={{ margin: '0.25rem 0 0 0', fontSize: '1rem', fontWeight: 800, color: 'var(--primary)' }}>
+                      🎉 レベルアップしました！
                     </p>
                   )}
                 </div>
               )}
-
-              <div style={{ background: isCorrect ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1.5rem', textAlign: 'left' }}>
-                <strong>AI解説:</strong>
-                <p style={{ margin: 0, fontSize: '0.9rem', marginTop: '0.5rem', lineHeight: 1.5 }}>{question.explanation}</p>
-              </div>
               
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => navigate('/')}>
