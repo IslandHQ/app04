@@ -55,11 +55,15 @@ JSONの構造は必ず以下の配列形式にしてください。
         { role: 'system', content: 'あなたは正確なJSONのみを出力する教育アシスタントです。出力前に内容が学習指導要領に準拠しているか、また正解が選択肢に含まれているかセルフチェックを行ってください。' },
         { role: 'user', content: prompt }
       ],
-      response_format: { type: "json_object" }
+      response_format: { type: "text" }
     });
 
-    const content = response.choices[0]?.message?.content;
+    let content = response.choices[0]?.message?.content;
     if (content) {
+      const jsonMatch = content.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+      if (jsonMatch) {
+        content = jsonMatch[0];
+      }
       const parsed = JSON.parse(content);
       // openaiのjson_objectは{ "questions": [...] }のような形式で返ってくることがあるため、配列を抽出
       const questions = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.drills || Object.values(parsed)[0]);
@@ -107,11 +111,15 @@ export async function gradeAnswer(question: DrillQuestion, userAnswer: string): 
     const response = await openai.chat.completions.create({
       model: settings.model,
       messages: [{ role: 'user', content: prompt }],
-      response_format: { type: "json_object" }
+      response_format: { type: "text" }
     });
 
-    const content = response.choices[0]?.message?.content;
+    let content = response.choices[0]?.message?.content;
     if (content) {
+      const jsonMatch = content.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+      if (jsonMatch) {
+        content = jsonMatch[0];
+      }
       return JSON.parse(content);
     }
   } catch (error) {
