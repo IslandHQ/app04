@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Lightbulb, CheckCircle2, XCircle, ArrowRight, Bot, Loader2, MessageSquare } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { generateDrills, gradeAnswer, type DrillQuestion } from '../lib/ai';
+import { generateDrills, type DrillQuestion } from '../lib/ai';
 import { Storage } from '../lib/storage';
 
 export default function DrillPage() {
@@ -15,7 +15,6 @@ export default function DrillPage() {
   const [hintLevel, setHintLevel] = useState(0); // 0: none, 1: hint1, 2: hint2
   
   const [isLoading, setIsLoading] = useState(true);
-  const [isGrading, setIsGrading] = useState(false);
   const isFetchingRef = useRef(false);
   
   const [expResult, setExpResult] = useState<{gainedExp: number, leveledUp: boolean} | null>(null);
@@ -79,20 +78,16 @@ export default function DrillPage() {
   const handleSubmit = async (selectedAnswer: string) => {
     if (!question || isAnswered) return;
     
-    setIsGrading(true);
-    
-    // クロスモデル採点
-    const result = await gradeAnswer(question, selectedAnswer);
+    const isCorrectAnswer = selectedAnswer === question.correctAnswer;
     
     setIsAnswered(true);
-    setIsCorrect(result.isCorrect);
-    setFeedback(result.feedback);
-    setIsGrading(false);
+    setIsCorrect(isCorrectAnswer);
+    setFeedback(question.explanation);
     
     // 学習記録の保存
     const timeSpentMs = Date.now() - startTimeRef.current;
     const timeSpentMin = Math.max(1, Math.round(timeSpentMs / 60000));
-    const studyRecordResult = Storage.addStudyResult(subjectParam, question.topic, timeSpentMin, result.isCorrect);
+    const studyRecordResult = Storage.addStudyResult(subjectParam, question.topic, timeSpentMin, isCorrectAnswer);
     setExpResult(studyRecordResult);
   };
 
@@ -175,7 +170,6 @@ export default function DrillPage() {
                       boxShadow: 'var(--shadow-sm)'
                     }}
                     onClick={() => handleSubmit(choice)}
-                    disabled={isGrading}
                   >
                     {choice}
                   </button>
@@ -188,17 +182,11 @@ export default function DrillPage() {
                   className="btn btn-secondary" 
                   style={{ gap: '0.5rem' }}
                   onClick={handleGetHint}
-                  disabled={hintLevel >= 2 || isGrading}
+                  disabled={hintLevel >= 2}
                 >
                   <Lightbulb size={18} /> {hintLevel === 0 ? 'ヒントを見る' : 'さらにヒントを見る'}
                 </button>
               </div>
-
-              {isGrading && (
-                <div style={{ textAlign: 'center', marginTop: '1.5rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                  <Loader2 className="animate-spin" size={18} /> AIが回答を精査中...
-                </div>
-              )}
             </div>
           ) : (
             <div className="glass-panel animate-slide-up" style={{ 
