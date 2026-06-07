@@ -12,7 +12,7 @@ export interface DrillQuestion {
   hint2: string;
 }
 
-export async function generateDrills(subject: string, topic: string, count: number = 3): Promise<DrillQuestion[]> {
+export async function generateDrills(subject: string, topic: string, count: number = 3, seed?: string): Promise<DrillQuestion[]> {
   const settings = Storage.getSettings();
   if (!settings.apiKey) return [];
 
@@ -26,6 +26,8 @@ export async function generateDrills(subject: string, topic: string, count: numb
   const prompt = `あなたは日本の学習指導要領に精通した優秀なAIチューターです。
 中学生の学習指導要領に基づき、以下の条件で適切なレベルのドリル問題を${count}問作成し、JSON形式の「配列」で出力してください。
 問題は選択形式（4択）とし、段階的なヒント（2段階）を含めてください。
+${seed ? `作成のバリエーションを増やすためのシード値: ${seed}` : ''}
+他の問題と重複しないように、ユニークな視点や数値設定で作成してください。
 
 JSONの構造は必ず以下の配列形式にしてください。
 [
@@ -48,6 +50,8 @@ JSONの構造は必ず以下の配列形式にしてください。
 
 出力は必ずJSON配列のみにし、余計な説明は省いてください。`;
 
+  console.log(`AI生成開始: ${subject} - ${topic} (${count}問) ${seed ? `[seed: ${seed}]` : ''}`);
+
   try {
     const response = await openai.chat.completions.create({
       model: settings.model,
@@ -64,21 +68,15 @@ JSONの構造は必ず以下の配列形式にしてください。
       const parsed = JSON.parse(jsonStr);
       // openaiのjson_objectは{ "questions": [...] }のような形式で返ってくることがあるため、配列を抽出
       const questions = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.drills || Object.values(parsed)[0]);
-      return Array.isArray(questions) ? questions : [questions];
+      const result = Array.isArray(questions) ? questions : [questions];
+      console.log(`AI生成完了: ${subject} - ${topic} (${result.length}問取得)`);
+      return result;
     }
   } catch (error: any) {
     console.error("Failed to generate drills", error);
-    // エラー内容を画面に表示するために仮の問題オブジェクトを返す
-    return [{
-      subject: "エラー",
-      topic: "通信エラー",
-      questionText: `APIへの接続に失敗しました。\n\n詳細: ${error.message}\n\n・設定画面のエンドポイントURLが正しいか確認してください。\n・ブラウザからのアクセス(CORS)が許可されているエンドポイントか確認してください。`,
-      choices: ["設定を確認する", "やり直す", "ヘルプを見る", "閉じる"],
-      correctAnswer: "",
-      explanation: "設定画面からURLとAPIキーを見直してください。",
-      hint1: "設定画面を確認してください。",
-      hint2: "APIキーが正しいか確認してください。"
-    }];
+    // 呼び出し側で個別にハンドリングしやすくするため、ここではエラーを投げるか空配列を返す
+    // DrillPage側で1問目の場合はエラー用カードを出したいので、ここでは空配列を返して、呼び出し側で判断する
+    return [];
   }
   return [];
 }

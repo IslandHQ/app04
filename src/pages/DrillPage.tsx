@@ -30,6 +30,7 @@ export default function DrillPage() {
   const fetchQuestions = async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
+
     let topic = topicParam || "ランダムな基礎計算や方程式";
     if (!topicParam) {
       if (subjectParam === '英語') topic = "英単語や基本文法（和訳・英訳）";
@@ -38,22 +39,65 @@ export default function DrillPage() {
       if (subjectParam === '国語') topic = "漢字の読み書きや四字熟語、ことわざ";
     }
 
-    const qs = await generateDrills(subjectParam, topic, 3);
+    console.log("問題の取得を開始します...");
+
+    // 1問目を優先的に取得 (Aのパターン: 1問目が返ってきてから次を開始)
+    const firstBatch = await generateDrills(subjectParam, topic, 1, Math.random().toString(36).substring(7));
     
-    if (qs.length === 0 && !Storage.getSettings().apiKey) {
-      qs.push({
-        subject: subjectParam,
-        topic: "API未設定",
-        questionText: "APIキーが設定されていません。設定画面でキーを登録してください。",
-        choices: ["設定画面へ", "キャンセル", "ヘルプ", "閉じる"],
-        correctAnswer: "",
-        explanation: "APIキーを設定すると問題が自動生成されます。",
-        hint1: "設定画面を確認してください。",
-        hint2: "APIキーが必要です。"
-      });
+    if (firstBatch.length > 0) {
+      setQuestionQueue(prev => [...prev, ...firstBatch]);
+    } else {
+      // 失敗またはAPI未設定時のフォールバック
+      if (!Storage.getSettings().apiKey) {
+        setQuestionQueue(prev => [...prev, {
+          subject: subjectParam,
+          topic: "API未設定",
+          questionText: "APIキーが設定されていません。設定画面でキーを登録してください。",
+          choices: ["設定画面へ", "キャンセル", "ヘルプ", "閉じる"],
+          correctAnswer: "",
+          explanation: "APIキーを設定すると問題が自動生成されます。",
+          hint1: "設定画面を確認してください。",
+          hint2: "APIキーが必要です。"
+        }]);
+      } else if (questionQueue.length === 0 && !question) {
+        // 全く問題がない状態で失敗した場合のみエラーを表示
+        setQuestionQueue(prev => [...prev, {
+          subject: "エラー",
+          topic: "通信エラー",
+          questionText: "問題の生成に失敗しました。通信環境やAPI設定を確認してください。",
+          choices: ["やり直す", "閉じる"],
+          correctAnswer: "",
+          explanation: "通信エラーが発生しました。",
+          hint1: "リロードしてみてください。",
+          hint2: "APIの設定を確認してください。"
+        }]);
+      }
     }
 
-    setQuestionQueue(prev => [...prev, ...qs]);
+    // 2問目以降をパラレルに取得 (総計3問になるようにあと2回リクエスト)
+    console.log("2問目以降の並列取得を開始します...");
+    const parallelRequests = [
+      generateDrills(subjectParam, topic, 1, Math.random().toString(36).substring(7)),
+      generateDrills(subjectParam, topic, 1, Math.random().toString(36).substring(7))
+    ];
+
+    const results = await Promise.allSettled(parallelRequests);
+
+    const additionalQuestions: DrillQuestion[] = [];
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value.length > 0) {
+        console.log(`並列リクエスト ${index + 1}: 成功`);
+        additionalQuestions.push(...result.value);
+      } else {
+        console.warn(`並列リクエスト ${index + 1}: 失敗`);
+      }
+    });
+
+    if (additionalQuestions.length > 0) {
+      setQuestionQueue(prev => [...prev, ...additionalQuestions]);
+    }
+
+    console.log(`問題の取得が完了しました。合計 ${additionalQuestions.length + (firstBatch.length > 0 ? 1 : 0)} 問追加されました。`);
     isFetchingRef.current = false;
   };
 
