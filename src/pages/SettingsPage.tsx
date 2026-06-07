@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Save, Server, Key, Cpu } from 'lucide-react';
-import { Storage, type AISettings } from '../lib/storage';
+import { Save, Server, Key, Cpu, User } from 'lucide-react';
+import { Storage, type AISettings, type UserData } from '../lib/storage';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AISettings>({
@@ -8,19 +8,35 @@ export default function SettingsPage() {
     apiKey: '',
     model: 'gpt-4o'
   });
+  const [userData, setUserData] = useState<UserData>({
+    grade: '中1',
+    name: '',
+    streak: 0,
+    lastStudyDate: '',
+    level: 1,
+    exp: 0,
+    topicStats: {},
+    detailedStats: {}
+  });
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     setSettings(Storage.getSettings());
+    setUserData(Storage.getUserData());
   }, []);
 
   const handleChange = (field: keyof AISettings) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setSettings(prev => ({ ...prev, [field]: e.target.value }));
   };
 
+  const handleUserChange = (field: keyof UserData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setUserData(prev => ({ ...prev, [field]: e.target.value }));
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     Storage.saveSettings(settings);
+    Storage.saveUserData(userData);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
@@ -35,9 +51,47 @@ export default function SettingsPage() {
       </header>
 
       <form onSubmit={handleSave} className="glass-panel" style={{ padding: '1.5rem' }}>
+        <h3 style={{ fontSize: '1.125rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <User size={18} color="var(--primary)" /> ユーザー設定
+        </h3>
+
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.5rem' }}>ニックネーム</label>
+          <input
+            type="text"
+            className="input-field"
+            value={userData.name}
+            onChange={handleUserChange('name')}
+            placeholder="たろう"
+            required
+          />
+        </div>
+
+        <div style={{ marginBottom: '2rem' }}>
+          <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.5rem' }}>学年</label>
+          <select
+            className="input-field"
+            value={userData.grade}
+            onChange={handleUserChange('grade')}
+            style={{ width: '100%', background: 'white' }}
+          >
+            <option value="中1">中学1年生</option>
+            <option value="中2">中学2年生</option>
+            <option value="中3">中学3年生</option>
+          </select>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+            学年に合わせた難易度の問題が生成されます。
+          </p>
+        </div>
+
+        <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '2rem 0' }} />
+
+        <h3 style={{ fontSize: '1.125rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Server size={18} color="var(--primary)" /> AIエンジン設定
+        </h3>
+
         <div style={{ marginBottom: '1.5rem' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-            <Server size={18} color="var(--primary)" />
             API エンドポイント
           </label>
           <input 
