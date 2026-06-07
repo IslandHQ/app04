@@ -54,13 +54,14 @@ JSONの構造は必ず以下の配列形式にしてください。
       messages: [
         { role: 'system', content: 'あなたは正確なJSONのみを出力する教育アシスタントです。出力前に内容が学習指導要領に準拠しているか、また正解が選択肢に含まれているかセルフチェックを行ってください。' },
         { role: 'user', content: prompt }
-      ],
-      response_format: { type: "json_object" }
+      ]
     });
 
     const content = response.choices[0]?.message?.content;
     if (content) {
-      const parsed = JSON.parse(content);
+      // Remove markdown code blocks if present
+      const jsonStr = content.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(jsonStr);
       // openaiのjson_objectは{ "questions": [...] }のような形式で返ってくることがあるため、配列を抽出
       const questions = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.drills || Object.values(parsed)[0]);
       return Array.isArray(questions) ? questions : [questions];
