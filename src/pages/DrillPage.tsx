@@ -15,6 +15,7 @@ export default function DrillPage() {
   const [hintLevel, setHintLevel] = useState(0); // 0: none, 1: hint1, 2: hint2
   
   const [isLoading, setIsLoading] = useState(true);
+  const [isBackgroundFetching, setIsBackgroundFetching] = useState(false);
   const isFetchingRef = useRef(false);
   
   const [expResult, setExpResult] = useState<{gainedExp: number, leveledUp: boolean} | null>(null);
@@ -30,6 +31,7 @@ export default function DrillPage() {
   const fetchQuestions = async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
+    setIsBackgroundFetching(true);
 
     let topic = topicParam || "ランダムな基礎計算や方程式";
     if (!topicParam) {
@@ -39,13 +41,12 @@ export default function DrillPage() {
       if (subjectParam === '国語') topic = "漢字の読み書きや四字熟語、ことわざ";
     }
 
-    console.log("問題の取得を開始します...");
+    console.log("逐次生成を開始します...");
 
-    // 1問目を優先的に取得 (Aのパターン: 1問目が返ってきてから次を開始)
-    const firstBatch = await generateDrills(subjectParam, topic, 1, Math.random().toString(36).substring(7));
-    
-    if (firstBatch.length > 0) {
-      setQuestionQueue(prev => [...prev, ...firstBatch]);
+    // 1問目を取得
+    const q1 = await generateDrills(subjectParam, topic, 1, Math.random().toString(36).substring(7));
+    if (q1.length > 0) {
+      setQuestionQueue(prev => [...prev, ...q1]);
     } else {
       // 失敗またはAPI未設定時のフォールバック
       if (!Storage.getSettings().apiKey) {
@@ -60,7 +61,6 @@ export default function DrillPage() {
           hint2: "APIキーが必要です。"
         }]);
       } else if (questionQueue.length === 0 && !question) {
-        // 全く問題がない状態で失敗した場合のみエラーを表示
         setQuestionQueue(prev => [...prev, {
           subject: "エラー",
           topic: "通信エラー",
@@ -74,30 +74,22 @@ export default function DrillPage() {
       }
     }
 
-    // 2問目以降をパラレルに取得 (総計3問になるようにあと2回リクエスト)
-    console.log("2問目以降の並列取得を開始します...");
-    const parallelRequests = [
-      generateDrills(subjectParam, topic, 1, Math.random().toString(36).substring(7)),
-      generateDrills(subjectParam, topic, 1, Math.random().toString(36).substring(7))
-    ];
-
-    const results = await Promise.allSettled(parallelRequests);
-
-    const additionalQuestions: DrillQuestion[] = [];
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled' && result.value.length > 0) {
-        console.log(`並列リクエスト ${index + 1}: 成功`);
-        additionalQuestions.push(...result.value);
-      } else {
-        console.warn(`並列リクエスト ${index + 1}: 失敗`);
-      }
-    });
-
-    if (additionalQuestions.length > 0) {
-      setQuestionQueue(prev => [...prev, ...additionalQuestions]);
+    // 2問目を取得（1問目が終わってから開始）
+    console.log("2問目の生成を開始...");
+    const q2 = await generateDrills(subjectParam, topic, 1, Math.random().toString(36).substring(7));
+    if (q2.length > 0) {
+      setQuestionQueue(prev => [...prev, ...q2]);
     }
 
-    console.log(`問題の取得が完了しました。合計 ${additionalQuestions.length + (firstBatch.length > 0 ? 1 : 0)} 問追加されました。`);
+    // 3問目を取得（2問目が終わってから開始）
+    console.log("3問目の生成を開始...");
+    const q3 = await generateDrills(subjectParam, topic, 1, Math.random().toString(36).substring(7));
+    if (q3.length > 0) {
+      setQuestionQueue(prev => [...prev, ...q3]);
+    }
+
+    console.log("すべての問題生成が完了しました。");
+    setIsBackgroundFetching(false);
     isFetchingRef.current = false;
   };
 
@@ -116,6 +108,9 @@ export default function DrillPage() {
       setQuestionQueue(prev => prev.slice(1));
       startTimeRef.current = Date.now();
       setIsLoading(false);
+    } else if (!question && questionQueue.length === 0 && !isFetchingRef.current) {
+      // ユーザーが「次へ」を押したが、まだ生成が完了していない場合、再度ローディング状態にする
+      setIsLoading(true);
     }
   }, [question, questionQueue]);
 
@@ -158,7 +153,9 @@ export default function DrillPage() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
         <Loader2 className="animate-spin" size={48} color="var(--primary)" />
-        <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>AIが {subjectParam} の問題を生成しています...</p>
+        <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>
+          {isBackgroundFetching ? "次の問題を生成しています..." : `AIが ${subjectParam} の問題を準備しています...`}
+        </p>
       </div>
     );
   }
@@ -169,6 +166,12 @@ export default function DrillPage() {
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 'calc(100vh - 8rem)' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div className="badge badge-primary">{question.subject} - {question.topic}</div>
+        {isBackgroundFetching && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', fontSize: '0.8rem', fontWeight: 600 }}>
+            <Loader2 className="animate-spin" size={14} />
+            次の問題を準備中...
+          </div>
+        )}
       </header>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
