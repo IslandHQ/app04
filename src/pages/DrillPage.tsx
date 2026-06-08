@@ -20,16 +20,16 @@ export default function DrillPage() {
   const [expResult, setExpResult] = useState<{gainedExp: number, leveledUp: boolean} | null>(null);
 
   const startTimeRef = useRef<number>(0);
-  const initialized = useRef(false);
   const navigate = useNavigate();
   
   const [searchParams] = useSearchParams();
   const subjectParam = searchParams.get('subject') || '数学';
   const topicParam = searchParams.get('topic');
 
-  const fetchQuestions = async () => {
+  const fetchSingleQuestion = async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
+
     let topic = topicParam || "ランダムな基礎計算や方程式";
     if (!topicParam) {
       if (subjectParam === '英語') topic = "英単語や基本文法（和訳・英訳）";
@@ -38,31 +38,71 @@ export default function DrillPage() {
       if (subjectParam === '国語') topic = "漢字の読み書きや四字熟語、ことわざ";
     }
 
-    const qs = await generateDrills(subjectParam, topic, 3);
+    console.log(`[AI Drill] 問題の生成を開始... (トピック: ${topic})`);
     
-    if (qs.length === 0 && !Storage.getSettings().apiKey) {
-      qs.push({
-        subject: subjectParam,
-        topic: "API未設定",
-        questionText: "APIキーが設定されていません。設定画面でキーを登録してください。",
-        choices: ["設定画面へ", "キャンセル", "ヘルプ", "閉じる"],
-        correctAnswer: "",
-        explanation: "APIキーを設定すると問題が自動生成されます。",
-        hint1: "設定画面を確認してください。",
-        hint2: "APIキーが必要です。"
-      });
-    }
+    try {
+      const qs = await generateDrills(subjectParam, topic, 1);
 
-    setQuestionQueue(prev => [...prev, ...qs]);
-    isFetchingRef.current = false;
+      if (qs.length > 0) {
+        const newQuestion = qs[0];
+        // 成功ログ
+        setQuestionQueue(prev => {
+          const newQueue = [...prev, newQuestion];
+          console.log(`[AI Drill] 生成成功。現在のストック: ${newQueue.length}`);
+          return newQueue;
+        });
+        Storage.addRecentQuestion(newQuestion.questionText);
+      } else {
+        console.warn(`[AI Drill] 問題が生成されませんでした。`);
+        // APIキー未設定などの理由で問題が生成されなかった場合
+        if (!question && questionQueue.length === 0) {
+          const emptyCard: DrillQuestion = {
+            subject: subjectParam,
+            topic: "準備中",
+            questionText: "問題を取得できませんでした。設定画面でAPIキーが正しく設定されているか確認してください。",
+            choices: ["設定へ", "やり直す", "戻る", "閉じる"],
+            correctAnswer: "",
+            explanation: "APIキーが設定されていないか、モデルが利用できない可能性があります。",
+            hint1: "設定画面を確認してください。",
+            hint2: "APIキーが必要です。"
+          };
+          setQuestionQueue([emptyCard]);
+        }
+      }
+    } catch (error: any) {
+      console.error(`[AI Drill] 生成失敗: ${error.message}. ストック補充をスキップします。`);
+
+      // 最初の1問目でエラーが起きた場合のみ、エラー用カードを出す（何もないと進まないため）
+      if (!question && questionQueue.length === 0) {
+        const errorCard: DrillQuestion = {
+          subject: subjectParam,
+          topic: "通信エラー",
+          questionText: `問題の生成に失敗しました。\n\n詳細: ${error.message}\n\n再試行するか設定を確認してください。`,
+          choices: ["設定を確認する", "リトライ", "終了する", "閉じる"],
+          correctAnswer: "",
+          explanation: "ネットワーク接続やAPI設定を確認してください。",
+          hint1: "インターネットに接続されていますか？",
+          hint2: "APIキーやエンドポイントに間違いはありませんか？"
+        };
+        setQuestionQueue([errorCard]);
+      }
+    } finally {
+      isFetchingRef.current = false;
+    }
   };
 
+  // ストックを補充するループ
   useEffect(() => {
-    if (!initialized.current) {
-      initialized.current = true;
-      fetchQuestions();
-    }
-  }, []);
+    const fillQueue = async () => {
+      // 表示中の1問 + ストック3問 = 合計4問を確保
+      const currentTotal = (question ? 1 : 0) + questionQueue.length;
+      if (currentTotal < 4 && !isFetchingRef.current) {
+        await fetchSingleQuestion();
+      }
+    };
+
+    fillQueue();
+  }, [question, questionQueue]);
 
   // キューから問題を取り出す
   useEffect(() => {
@@ -103,11 +143,6 @@ export default function DrillPage() {
     setHintLevel(0);
     setExpResult(null);
     setQuestion(null); // useEffectによって次の問題がキューから自動的に取り出される
-    
-    // 残りのキューが少なくなったら裏で追加フェッチしておく（待ち時間ゼロにするため）
-    if (questionQueue.length <= 1) {
-      fetchQuestions();
-    }
   };
 
   if (isLoading) {

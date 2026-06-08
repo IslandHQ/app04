@@ -12,7 +12,7 @@ export interface DrillQuestion {
   hint2: string;
 }
 
-export async function generateDrills(subject: string, topic: string, count: number = 3): Promise<DrillQuestion[]> {
+export async function generateDrills(subject: string, topic: string, count: number = 1): Promise<DrillQuestion[]> {
   const settings = Storage.getSettings();
   if (!settings.apiKey) return [];
 
@@ -23,28 +23,41 @@ export async function generateDrills(subject: string, topic: string, count: numb
   });
 
   const userData = Storage.getUserData();
+
+  let duplicatePreventionPrompt = "";
+  if (settings.preventDuplicateMethod === 'list') {
+    const recent = Storage.getRecentQuestions();
+    if (recent.length > 0) {
+      duplicatePreventionPrompt = `\n以下の問題は最近出題されたため、これらとは内容が重複しないようにしてください：\n${recent.map((q, i) => `${i+1}. ${q}`).join('\n')}`;
+    }
+  } else {
+    duplicatePreventionPrompt = `\nリクエスト識別子 (Seed): ${Date.now()}-${Math.random()}`;
+  }
+
   const prompt = `あなたは日本の学習指導要領に精通した優秀なAIチューターです。
-中学生の学習指導要領に基づき、以下の条件で適切なレベルのドリル問題を${count}問作成し、JSON形式の「配列」で出力してください。
+中学生の学習指導要領に基づき、以下の条件で適切なレベルのドリル問題を${count}問作成し、JSON形式で出力してください。
 問題は選択形式（4択）とし、段階的なヒント（2段階）を含めてください。
 
-JSONの構造は必ず以下の配列形式にしてください。
-[
-  {
-    "subject": "${subject}",
-    "topic": "${topic}",
-    "questionText": "問題のテキスト",
-    "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"],
-    "correctAnswer": "正解のテキスト（choicesの中のいずれか一つと完全に一致させること）",
-    "explanation": "解説のテキスト",
-    "hint1": "第1段階のヒント（考え方のヒント）",
-    "hint2": "第2段階のヒント（より具体的なヒント）"
-  }
-]
+JSONの構造は必ず以下の形式にしてください：
+{
+  "questions": [
+      {
+        "subject": "${subject}",
+        "topic": "${topic}",
+        "questionText": "問題のテキスト",
+        "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"],
+        "correctAnswer": "正解のテキスト（choicesの中のいずれか一つと完全に一致させること）",
+        "explanation": "解説のテキスト",
+        "hint1": "第1段階のヒント（考え方のヒント）",
+        "hint2": "第2段階のヒント（より具体的なヒント）"
+      }
+    ]
+}
 
 ユーザーの学年: ${userData.grade}
 科目: ${subject}
 単元: ${topic}
-難易度: 学習指導要領に基づいた適切なレベル
+難易度: 学習指導要領に基づいた適切なレベル${duplicatePreventionPrompt}
 
 出力は必ずJSON配列のみにし、余計な説明は省いてください。`;
 
@@ -54,7 +67,8 @@ JSONの構造は必ず以下の配列形式にしてください。
       messages: [
         { role: 'system', content: 'あなたは正確なJSONのみを出力する教育アシスタントです。出力前に内容が学習指導要領に準拠しているか、また正解が選択肢に含まれているかセルフチェックを行ってください。' },
         { role: 'user', content: prompt }
-      ]
+      ],
+      response_format: { type: 'json_object' }
     });
 
     const content = response.choices[0]?.message?.content;
