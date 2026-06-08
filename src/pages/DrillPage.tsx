@@ -6,7 +6,9 @@ import { Storage } from '../lib/storage';
 
 export default function DrillPage() {
   const [questionQueue, setQuestionQueue] = useState<DrillQuestion[]>([]);
+  const queueRef = useRef<DrillQuestion[]>([]);
   const [question, setQuestion] = useState<DrillQuestion | null>(null);
+  const historyRef = useRef<string[]>([]);
   
   const [isAnswered, setIsAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
@@ -30,6 +32,7 @@ export default function DrillPage() {
   const fetchQuestions = async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
+
     let topic = topicParam || "ランダムな基礎計算や方程式";
     if (!topicParam) {
       if (subjectParam === '英語') topic = "英単語や基本文法（和訳・英訳）";
@@ -38,22 +41,74 @@ export default function DrillPage() {
       if (subjectParam === '国語') topic = "漢字の読み書きや四字熟語、ことわざ";
     }
 
-    const qs = await generateDrills(subjectParam, topic, 3);
-    
-    if (qs.length === 0 && !Storage.getSettings().apiKey) {
-      qs.push({
-        subject: subjectParam,
-        topic: "API未設定",
-        questionText: "APIキーが設定されていません。設定画面でキーを登録してください。",
-        choices: ["設定画面へ", "キャンセル", "ヘルプ", "閉じる"],
-        correctAnswer: "",
-        explanation: "APIキーを設定すると問題が自動生成されます。",
-        hint1: "設定画面を確認してください。",
-        hint2: "APIキーが必要です。"
-      });
+    const settings = Storage.getSettings();
+
+    // ストックが3問になるまで1問ずつ補充
+    while (true) {
+      const currentStock = queueRef.current.length;
+      if (currentStock >= 3) break;
+
+      const targetIndex = currentStock + 1;
+      console.log(`[AI生成] ${targetIndex}問目の補充を開始... (現在のストック: ${currentStock}/3)`);
+
+      try {
+        const qs = await generateDrills(
+          subjectParam,
+          topic,
+          1,
+          settings.duplicatePreventionMode === 'history' ? historyRef.current : [],
+          Math.random().toString(36).substring(7)
+        );
+
+        if (qs.length > 0) {
+          queueRef.current = [...queueRef.current, ...qs];
+          setQuestionQueue([...queueRef.current]);
+          const newTexts = qs.map(q => q.questionText);
+          historyRef.current = [...historyRef.current, ...newTexts].slice(-10);
+          console.log(`[AI生成] ${targetIndex}問目の補充に成功。現在のストック: ${queueRef.current.length}/3`);
+        } else {
+          console.warn(`[AI生成] ${targetIndex}問目の補充に失敗（空のレスポンス）。`);
+
+          // 1問目すらない場合は、API未設定の可能性が高いので案内を出す
+          if (!question && queueRef.current.length === 0) {
+            const emptyQuestion: DrillQuestion = {
+              subject: subjectParam,
+              topic: settings.apiKey ? "生成失敗" : "API未設定",
+              questionText: settings.apiKey
+                ? "問題の生成に失敗しました。もう一度試すか、設定を確認してください。"
+                : "APIキーが設定されていません。設定画面でキーを登録してください。",
+              choices: ["設定画面へ", "やり直す", "ヘルプ", "閉じる"],
+              correctAnswer: "",
+              explanation: settings.apiKey ? "AIからのレスポンスが空でした。" : "APIキーを設定すると問題が自動生成されます。",
+              hint1: "設定画面を確認してください。",
+              hint2: "APIキーが必要です。"
+            };
+            queueRef.current = [emptyQuestion];
+            setQuestionQueue([emptyQuestion]);
+          }
+          break;
+        }
+      } catch (error: any) {
+        console.error(`[AI生成] ${targetIndex}問目の補充に失敗:`, error);
+
+        if (!question && queueRef.current.length === 0) {
+          const errorQuestion: DrillQuestion = {
+            subject: subjectParam,
+            topic: "通信エラー",
+            questionText: `APIへの接続に失敗しました。\n\n詳細: ${error.message}\n\n・設定画面のエンドポイントURLが正しいか確認してください。`,
+            choices: ["設定を確認する", "やり直す", "ヘルプを見る", "閉じる"],
+            correctAnswer: "",
+            explanation: "設定画面からURLとAPIキーを見直してください。",
+            hint1: "設定画面を確認してください。",
+            hint2: "APIキーが正しいか確認してください。"
+          };
+          queueRef.current = [errorQuestion];
+          setQuestionQueue([errorQuestion]);
+        }
+        break;
+      }
     }
 
-    setQuestionQueue(prev => [...prev, ...qs]);
     isFetchingRef.current = false;
   };
 
@@ -69,9 +124,13 @@ export default function DrillPage() {
     if (!question && questionQueue.length > 0) {
       const nextQ = questionQueue[0];
       setQuestion(nextQ);
-      setQuestionQueue(prev => prev.slice(1));
+      queueRef.current = queueRef.current.slice(1);
+      setQuestionQueue([...queueRef.current]);
       startTimeRef.current = Date.now();
       setIsLoading(false);
+
+      // 取り出したので補充を開始
+      fetchQuestions();
     }
   }, [question, questionQueue]);
 
@@ -104,10 +163,8 @@ export default function DrillPage() {
     setExpResult(null);
     setQuestion(null); // useEffectによって次の問題がキューから自動的に取り出される
     
-    // 残りのキューが少なくなったら裏で追加フェッチしておく（待ち時間ゼロにするため）
-    if (questionQueue.length <= 1) {
-      fetchQuestions();
-    }
+    // 次の問題へ行くタイミングで補充を確認
+    fetchQuestions();
   };
 
   if (isLoading) {
