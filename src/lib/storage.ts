@@ -2,6 +2,7 @@ export interface AISettings {
   endpoint: string;
   apiKey: string;
   model: string;
+  preventDuplicateMethod: 'list' | 'seed';
 }
 
 export interface DailyRecord {
@@ -25,7 +26,8 @@ export interface UserData {
 const DEFAULT_SETTINGS: AISettings = {
   endpoint: 'https://api.openai.com/v1',
   apiKey: '',
-  model: 'gpt-4o'
+  model: 'gpt-4o',
+  preventDuplicateMethod: 'seed'
 };
 
 const DEFAULT_USER_DATA: UserData = {
@@ -42,7 +44,9 @@ const DEFAULT_USER_DATA: UserData = {
 export const Storage = {
   getSettings(): AISettings {
     const data = localStorage.getItem('app_settings');
-    return data ? JSON.parse(data) : DEFAULT_SETTINGS;
+    if (!data) return DEFAULT_SETTINGS;
+    const settings = JSON.parse(data);
+    return { ...DEFAULT_SETTINGS, ...settings };
   },
   
   saveSettings(settings: AISettings) {
@@ -62,6 +66,17 @@ export const Storage = {
   
   saveUserData(userData: UserData) {
     localStorage.setItem('user_data', JSON.stringify(userData));
+  },
+
+  getRecentQuestions(): string[] {
+    const data = localStorage.getItem('recent_questions');
+    return data ? JSON.parse(data) : [];
+  },
+
+  addRecentQuestion(questionText: string) {
+    const questions = this.getRecentQuestions();
+    const updated = [questionText, ...questions].slice(0, 10);
+    localStorage.setItem('recent_questions', JSON.stringify(updated));
   },
   
   getDailyRecords(): DailyRecord[] {
