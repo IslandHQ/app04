@@ -12,7 +12,13 @@ export interface DrillQuestion {
   hint2: string;
 }
 
-export async function generateDrills(subject: string, topic: string, count: number = 3): Promise<DrillQuestion[]> {
+export async function generateDrills(
+  subject: string,
+  topic: string,
+  count: number = 1,
+  history: string[] = [],
+  seed?: number | string
+): Promise<DrillQuestion[]> {
   const settings = Storage.getSettings();
   if (!settings.apiKey) return [];
 
@@ -23,6 +29,20 @@ export async function generateDrills(subject: string, topic: string, count: numb
   });
 
   const userData = Storage.getUserData();
+
+  let duplicationPreventionPrompt = '';
+  if (settings.duplicatePreventionMode === 'history' && history.length > 0) {
+    duplicationPreventionPrompt = `
+以下の過去に出題した問題とは重複しないようにしてください：
+${history.map((text, i) => `${i + 1}. ${text}`).join('\n')}
+`;
+  } else if (settings.duplicatePreventionMode === 'seed' || seed) {
+    duplicationPreventionPrompt = `
+生成シード値: ${seed || Math.random().toString(36).substring(7)}
+毎回異なる内容になるようにバリエーションを持たせてください。
+`;
+  }
+
   const prompt = `あなたは日本の学習指導要領に精通した優秀なAIチューターです。
 中学生の学習指導要領に基づき、以下の条件で適切なレベルのドリル問題を${count}問作成し、JSON形式の「配列」で出力してください。
 問題は選択形式（4択）とし、段階的なヒント（2段階）を含めてください。
@@ -45,40 +65,27 @@ JSONの構造は必ず以下の配列形式にしてください。
 科目: ${subject}
 単元: ${topic}
 難易度: 学習指導要領に基づいた適切なレベル
+${duplicationPreventionPrompt}
 
 出力は必ずJSON配列のみにし、余計な説明は省いてください。`;
 
-  try {
-    const response = await openai.chat.completions.create({
-      model: settings.model,
-      messages: [
-        { role: 'system', content: 'あなたは正確なJSONのみを出力する教育アシスタントです。出力前に内容が学習指導要領に準拠しているか、また正解が選択肢に含まれているかセルフチェックを行ってください。' },
-        { role: 'user', content: prompt }
-      ]
-    });
+  const response = await openai.chat.completions.create({
+    model: settings.model,
+    messages: [
+      { role: 'system', content: 'あなたは正確なJSONのみを出力する教育アシスタントです。出力前に内容が学習指導要領に準拠しているか、また正解が選択肢に含まれているかセルフチェックを行ってください。' },
+      { role: 'user', content: prompt }
+    ]
+  });
 
-    const content = response.choices[0]?.message?.content;
-    if (content) {
-      // Remove markdown code blocks if present
-      const jsonStr = content.replace(/```json/gi, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(jsonStr);
-      // openaiのjson_objectは{ "questions": [...] }のような形式で返ってくることがあるため、配列を抽出
-      const questions = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.drills || Object.values(parsed)[0]);
-      return Array.isArray(questions) ? questions : [questions];
-    }
-  } catch (error: any) {
-    console.error("Failed to generate drills", error);
-    // エラー内容を画面に表示するために仮の問題オブジェクトを返す
-    return [{
-      subject: "エラー",
-      topic: "通信エラー",
-      questionText: `APIへの接続に失敗しました。\n\n詳細: ${error.message}\n\n・設定画面のエンドポイントURLが正しいか確認してください。\n・ブラウザからのアクセス(CORS)が許可されているエンドポイントか確認してください。`,
-      choices: ["設定を確認する", "やり直す", "ヘルプを見る", "閉じる"],
-      correctAnswer: "",
-      explanation: "設定画面からURLとAPIキーを見直してください。",
-      hint1: "設定画面を確認してください。",
-      hint2: "APIキーが正しいか確認してください。"
-    }];
+  const content = response.choices[0]?.message?.content;
+  if (content) {
+    // Remove markdown code blocks if present
+    const jsonStr = content.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(jsonStr);
+    // openaiのjson_objectは{ "questions": [...] }のような形式で返ってくることがあるため、配列を抽出
+    const questions = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.drills || Object.values(parsed)[0]);
+    return Array.isArray(questions) ? questions : [questions];
   }
+
   return [];
 }

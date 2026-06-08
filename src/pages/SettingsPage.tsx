@@ -6,7 +6,8 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<AISettings>({
     endpoint: 'https://api.openai.com/v1',
     apiKey: '',
-    model: 'gpt-4o'
+    model: 'gpt-4o',
+    duplicatePreventionMode: 'seed'
   });
   const [userData, setUserData] = useState<UserData>({
     grade: '中1',
@@ -25,7 +26,7 @@ export default function SettingsPage() {
     setUserData(Storage.getUserData());
   }, []);
 
-  const handleChange = (field: keyof AISettings) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (field: keyof AISettings) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setSettings(prev => ({ ...prev, [field]: e.target.value }));
   };
 
@@ -121,7 +122,7 @@ export default function SettingsPage() {
           />
         </div>
 
-        <div style={{ marginBottom: '2rem' }}>
+        <div style={{ marginBottom: '1.5rem' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, marginBottom: '0.5rem' }}>
             <Cpu size={18} color="var(--primary)" />
             使用モデル名
@@ -134,6 +135,24 @@ export default function SettingsPage() {
             placeholder="gpt-4o, llama-3-70b-instruct, etc."
             required
           />
+        </div>
+
+        <div style={{ marginBottom: '2rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+            重複防止モード
+          </label>
+          <select
+            className="input-field"
+            value={settings.duplicatePreventionMode}
+            onChange={handleChange('duplicatePreventionMode')}
+            style={{ width: '100%', background: 'white' }}
+          >
+            <option value="seed">シード値ベース（軽量・推奨）</option>
+            <option value="history">履歴ベース（より確実・通信量増）</option>
+          </select>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+            同じ問題が繰り返し生成されるのを防ぐ方法を選択します。
+          </p>
         </div>
 
         <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>

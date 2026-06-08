@@ -2,6 +2,7 @@ export interface AISettings {
   endpoint: string;
   apiKey: string;
   model: string;
+  duplicatePreventionMode: 'history' | 'seed';
 }
 
 export interface DailyRecord {
@@ -25,7 +26,8 @@ export interface UserData {
 const DEFAULT_SETTINGS: AISettings = {
   endpoint: 'https://api.openai.com/v1',
   apiKey: '',
-  model: 'gpt-4o'
+  model: 'gpt-4o',
+  duplicatePreventionMode: 'seed'
 };
 
 const DEFAULT_USER_DATA: UserData = {
