@@ -7,7 +7,8 @@ export default function SettingsPage() {
     endpoint: 'https://api.openai.com/v1',
     apiKey: '',
     model: 'gpt-4o',
-    duplicatePreventionMode: 'seed'
+    duplicatePreventionMode: 'seed',
+    useReasoning: true
   });
   const [userData, setUserData] = useState<UserData>({
     grade: '中1',
@@ -27,7 +28,8 @@ export default function SettingsPage() {
   }, []);
 
   const handleChange = (field: keyof AISettings) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setSettings(prev => ({ ...prev, [field]: e.target.value }));
+    const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
+    setSettings(prev => ({ ...prev, [field]: value }));
   };
 
   const handleUserChange = (field: keyof UserData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -137,7 +139,7 @@ export default function SettingsPage() {
           />
         </div>
 
-        <div style={{ marginBottom: '2rem' }}>
+        <div style={{ marginBottom: '1.5rem' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, marginBottom: '0.5rem' }}>
             重複防止モード
           </label>
@@ -152,6 +154,21 @@ export default function SettingsPage() {
           </select>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
             同じ問題が繰り返し生成されるのを防ぐ方法を選択します。
+          </p>
+        </div>
+
+        <div style={{ marginBottom: '2rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, marginBottom: '0.5rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={settings.useReasoning}
+              onChange={handleChange('useReasoning')}
+              style={{ width: '1.25rem', height: '1.25rem', cursor: 'pointer' }}
+            />
+            AIによる高品質生成（推論・セルフチェック）
+          </label>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem', marginLeft: '1.75rem' }}>
+            オンにすると生成に時間がかかりますが、問題の精度が向上します。オフにすると高速に生成されます。
           </p>
         </div>
 
