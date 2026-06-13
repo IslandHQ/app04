@@ -12,6 +12,18 @@ export interface DailyRecord {
   correctAnswers: number;
 }
 
+// ai.tsで定義されている型をインポート（型のみ）
+import type { DrillQuestion } from './ai';
+
+export interface CustomDrillSet {
+  id: string;
+  title: string;
+  subject: string;
+  topic: string;
+  createdAt: number;
+  questions: DrillQuestion[];
+}
+
 export interface UserData {
   grade: string;
   name: string;
@@ -73,6 +85,28 @@ export const Storage = {
   
   saveDailyRecords(records: DailyRecord[]) {
     localStorage.setItem('daily_records', JSON.stringify(records));
+  },
+  
+  getCustomDrillSets(): CustomDrillSet[] {
+    const data = localStorage.getItem('custom_drill_sets');
+    return data ? JSON.parse(data) : [];
+  },
+  
+  saveCustomDrillSet(drillSet: CustomDrillSet) {
+    const sets = this.getCustomDrillSets();
+    const existingIndex = sets.findIndex(s => s.id === drillSet.id);
+    if (existingIndex >= 0) {
+      sets[existingIndex] = drillSet;
+    } else {
+      sets.push(drillSet);
+    }
+    localStorage.setItem('custom_drill_sets', JSON.stringify(sets));
+  },
+  
+  deleteCustomDrillSet(id: string) {
+    const sets = this.getCustomDrillSets();
+    const filtered = sets.filter(s => s.id !== id);
+    localStorage.setItem('custom_drill_sets', JSON.stringify(filtered));
   },
   
   addStudyResult(subject: string, topic: string, minutes: number, isCorrect: boolean): { gainedExp: number, leveledUp: boolean } {

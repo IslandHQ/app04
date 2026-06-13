@@ -26,10 +26,35 @@ export default function DrillPage() {
   const navigate = useNavigate();
   
   const [searchParams] = useSearchParams();
+  const modeParam = searchParams.get('mode');
+  const setIdParam = searchParams.get('setId');
   const subjectParam = searchParams.get('subject') || '数学';
   const topicParam = searchParams.get('topic');
 
   const fetchQuestions = async () => {
+    if (isFetchingRef.current) return;
+    
+    // カスタムモードの場合は、指定されたセットを読み込む（1回のみ）
+    if (modeParam === 'custom' && setIdParam) {
+      if (queueRef.current.length > 0 || isAnswered || question) return; // 既にロード済みなら何もしない
+      isFetchingRef.current = true;
+      
+      const customSets = Storage.getCustomDrillSets();
+      const targetSet = customSets.find(s => s.id === setIdParam);
+      
+      if (targetSet && targetSet.questions.length > 0) {
+        queueRef.current = [...targetSet.questions];
+        setQuestionQueue([...queueRef.current]);
+      } else {
+        alert('指定された問題セットが見つかりません。');
+        navigate('/custom');
+      }
+      
+      isFetchingRef.current = false;
+      return;
+    }
+
+    // 以下は通常のAI自動生成モード
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
 
@@ -163,15 +188,30 @@ export default function DrillPage() {
     setExpResult(null);
     setQuestion(null); // useEffectによって次の問題がキューから自動的に取り出される
     
-    // 次の問題へ行くタイミングで補充を確認
-    fetchQuestions();
+    // カスタムモードでキューが空になったら終了
+    if (modeParam === 'custom' && queueRef.current.length === 0) {
+      alert('問題セットをすべて解き終わりました！お疲れ様でした。');
+      navigate('/');
+      return;
+    }
+    
+    // 次の問題へ行くタイミングで補充を確認（通常モードのみ）
+    if (modeParam !== 'custom') {
+      fetchQuestions();
+    }
   };
 
   if (isLoading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
-        <Loader2 className="animate-spin" size={48} color="var(--primary)" />
-        <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>AIが {subjectParam} の問題を生成しています...</p>
+        {modeParam === 'custom' ? (
+          <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>問題セットを読み込んでいます...</p>
+        ) : (
+          <>
+            <Loader2 className="animate-spin" size={48} color="var(--primary)" />
+            <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>AIが {subjectParam} の問題を生成しています...</p>
+          </>
+        )}
       </div>
     );
   }

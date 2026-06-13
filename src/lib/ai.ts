@@ -17,7 +17,8 @@ export async function generateDrills(
   topic: string,
   count: number = 1,
   history: string[] = [],
-  seed?: number | string
+  seed?: number | string,
+  customInstructions?: string
 ): Promise<DrillQuestion[]> {
   const settings = Storage.getSettings();
   if (!settings.apiKey) return [];
@@ -46,6 +47,8 @@ ${history.map((text, i) => `${i + 1}. ${text}`).join('\n')}
   const prompt = `あなたは日本の学習指導要領に精通した優秀なAIチューターです。
 中学生の学習指導要領に基づき、以下の条件で適切なレベルのドリル問題を${count}問作成し、JSON形式の「配列」で出力してください。
 問題は選択形式（4択）とし、段階的なヒント（2段階）を含めてください。
+
+${customInstructions ? `【特別な指示】\n以下の指示に必ず従ってください：\n${customInstructions}\n` : ''}
 
 JSONの構造は必ず以下の配列形式にしてください。
 [

@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom';
-import { Home, BookOpen, LineChart, Settings } from 'lucide-react';
+import { Home, BookOpen, LineChart, Settings, PenTool } from 'lucide-react';
 
 export default function Layout() {
   return (
@@ -16,6 +16,10 @@ export default function Layout() {
         <NavLink to="/drill" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <BookOpen size={24} />
           <span>ドリル</span>
+        </NavLink>
+        <NavLink to="/custom" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <PenTool size={24} />
+          <span>作る</span>
         </NavLink>
         <NavLink to="/dashboard" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <LineChart size={24} />

@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Flame, Settings, BookOpen, Globe, Beaker, Library, RefreshCw } from 'lucide-react';
-import { Storage, type UserData } from '../lib/storage';
+import { Storage, type UserData, type CustomDrillSet } from '../lib/storage';
 
 export default function HomePage() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [customSets, setCustomSets] = useState<CustomDrillSet[]>([]);
 
   useEffect(() => {
     setUserData(Storage.getUserData());
     setHasApiKey(!!Storage.getSettings().apiKey);
+    setCustomSets(Storage.getCustomDrillSets());
   }, []);
 
   if (!userData) return null;
@@ -117,7 +119,7 @@ export default function HomePage() {
       )}
 
       <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>教科を選ぶ</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
         {subjects.map(subject => (
           <Link 
             key={subject.id} 
@@ -141,6 +143,34 @@ export default function HomePage() {
           </Link>
         ))}
       </div>
+
+      {customSets.length > 0 && (
+        <div className="animate-slide-up" style={{ marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '1.25rem', margin: 0 }}>オリジナル問題</h3>
+            <Link to="/custom" style={{ fontSize: '0.9rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>すべて見る</Link>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {customSets.slice(0, 3).map(set => (
+              <Link 
+                key={set.id} 
+                to={`/drill?mode=custom&setId=${set.id}`} 
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
+                <div className="glass-panel" style={{ padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '4px solid var(--accent)' }}>
+                  <div>
+                    <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem' }}>{set.title}</h4>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>{set.subject} - {set.questions.length}問</p>
+                  </div>
+                  <div className="btn btn-secondary" style={{ padding: '0.4rem 1rem', borderRadius: '1rem', background: 'transparent', border: '2px solid var(--accent)', color: 'var(--accent)' }}>
+                    <Play size={16} style={{ marginRight: '0.25rem' }} /> プレイ
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
