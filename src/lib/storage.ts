@@ -3,6 +3,7 @@ export interface AISettings {
   apiKey: string;
   model: string;
   duplicatePreventionMode: 'history' | 'seed';
+  useReasoning: boolean;
 }
 
 export interface DailyRecord {
@@ -39,7 +40,8 @@ const DEFAULT_SETTINGS: AISettings = {
   endpoint: 'https://api.openai.com/v1',
   apiKey: '',
   model: 'gpt-4o',
-  duplicatePreventionMode: 'seed'
+  duplicatePreventionMode: 'seed',
+  useReasoning: true
 };
 
 const DEFAULT_USER_DATA: UserData = {
@@ -56,7 +58,7 @@ const DEFAULT_USER_DATA: UserData = {
 export const Storage = {
   getSettings(): AISettings {
     const data = localStorage.getItem('app_settings');
-    return data ? JSON.parse(data) : DEFAULT_SETTINGS;
+    return data ? { ...DEFAULT_SETTINGS, ...JSON.parse(data) } : DEFAULT_SETTINGS;
   },
   
   saveSettings(settings: AISettings) {

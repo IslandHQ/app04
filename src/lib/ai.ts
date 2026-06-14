@@ -72,10 +72,14 @@ ${duplicationPreventionPrompt}
 
 出力は必ずJSON配列のみにし、余計な説明は省いてください。`;
 
+  const systemPrompt = settings.useReasoning
+    ? 'あなたは正確なJSONのみを出力する教育アシスタントです。出力前に内容が学習指導要領に準拠しているか、また正解が選択肢に含まれているかセルフチェックを行ってください。'
+    : 'あなたは正確なJSONのみを出力する教育アシスタントです。指示に従って適切に問題を作成してください。';
+
   const response = await openai.chat.completions.create({
     model: settings.model,
     messages: [
-      { role: 'system', content: 'あなたは正確なJSONのみを出力する教育アシスタントです。出力前に内容が学習指導要領に準拠しているか、また正解が選択肢に含まれているかセルフチェックを行ってください。' },
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: prompt }
     ]
   });
