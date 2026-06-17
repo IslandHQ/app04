@@ -68,21 +68,21 @@ export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
             className="btn btn-primary animate-fade-in"
             style={{
               position: 'absolute',
-              bottom: '5rem', /* Above bottom nav */
-              right: '1rem',
-              width: '3.5rem',
-              height: '3.5rem',
+              bottom: '4.5rem', /* Right above bottom nav (4rem) */
+              right: '0.5rem',  /* Tucked into the edge */
+              width: '3rem',
+              height: '3rem',
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4)',
+              boxShadow: '0 4px 12px rgba(79, 70, 229, 0.4)',
               pointerEvents: 'auto'
             }}
             onClick={() => setIsOpen(true)}
             title="AIに質問する"
           >
-            <MessageCircle size={28} />
+            <MessageCircle size={22} />
           </button>
         </div>
       )}
