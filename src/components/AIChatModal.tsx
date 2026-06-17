@@ -53,68 +53,86 @@ export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
     <>
       {/* Floating Button */}
       {!isOpen && (
-        <button
-          className="btn btn-primary animate-fade-in"
-          style={{
-            position: 'fixed',
-            bottom: '5rem', /* Above bottom nav */
-            right: 'max(1rem, calc(50vw - 220px))', /* Align with max-width 480px container */
-            width: '3.5rem',
-            height: '3.5rem',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4)',
-            zIndex: 50
-          }}
-          onClick={() => setIsOpen(true)}
-          title="AIに質問する"
-        >
-          <MessageCircle size={28} />
-        </button>
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          bottom: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '100%',
+          maxWidth: '480px',
+          pointerEvents: 'none',
+          zIndex: 50
+        }}>
+          <button
+            className="btn btn-primary animate-fade-in"
+            style={{
+              position: 'absolute',
+              bottom: '5rem', /* Above bottom nav */
+              right: '1rem',
+              width: '3.5rem',
+              height: '3.5rem',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4)',
+              pointerEvents: 'auto'
+            }}
+            onClick={() => setIsOpen(true)}
+            title="AIに質問する"
+          >
+            <MessageCircle size={28} />
+          </button>
+        </div>
       )}
 
-      {/* Backdrop */}
+      {/* Modal Overlay and Chat Window */}
       {isOpen && (
-        <div
-          className="animate-fade-in"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            zIndex: 999,
-            backdropFilter: 'blur(2px)'
-          }}
-          onClick={() => setIsOpen(false)}
-        />
-      )}
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          bottom: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '100%',
+          maxWidth: '480px',
+          zIndex: 999,
+          pointerEvents: 'auto'
+        }}>
+          {/* Backdrop */}
+          <div
+            className="animate-fade-in"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              backdropFilter: 'blur(2px)'
+            }}
+            onClick={() => setIsOpen(false)}
+          />
 
-      {/* Chat Window (Bottom Sheet) */}
-      {isOpen && (
-        <div
-          className="glass-panel animate-slide-up"
-          style={{
-            position: 'fixed',
-            bottom: 0,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: '100%',
-            maxWidth: '480px',
-            height: '75vh',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '0 -10px 25px -5px rgba(0, 0, 0, 0.2)',
-            zIndex: 1000,
-            overflow: 'hidden',
-            borderBottomLeftRadius: 0,
-            borderBottomRightRadius: 0
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
+          {/* Chat Window (Bottom Sheet) */}
+          <div
+            className="glass-panel animate-slide-up"
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: '75%',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 -10px 25px -5px rgba(0, 0, 0, 0.2)',
+              overflow: 'hidden',
+              borderBottomLeftRadius: 0,
+              borderBottomRightRadius: 0
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
           {/* Header */}
           <div style={{
             padding: '1rem',
@@ -242,6 +260,7 @@ export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
               >
                 <Send size={16} />
               </button>
+            </div>
             </div>
           </div>
         </div>
