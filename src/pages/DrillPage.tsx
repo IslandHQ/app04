@@ -220,7 +220,8 @@ export default function DrillPage() {
   if (!question) return null;
 
   return (
-    <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 'calc(100vh - 8rem)' }}>
+    <>
+      <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 'calc(100vh - 8rem)' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div className="badge badge-primary">{question.subject} - {question.topic}</div>
       </header>
@@ -338,8 +339,9 @@ export default function DrillPage() {
           )}
         </div>
       </div>
-      
-      {question && <AIChatModal currentQuestion={question} />}
     </div>
+      
+    {question && <AIChatModal currentQuestion={question} />}
+    </>
   );
 }

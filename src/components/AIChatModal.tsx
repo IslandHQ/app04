@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bot, X, Send, Loader2, MessageCircle } from 'lucide-react';
+import { Bot, X, Send, Loader2 } from 'lucide-react';
 import { chatWithTutor, type ChatMessage, type DrillQuestion } from '../lib/ai';
 
 interface AIChatModalProps {
@@ -72,6 +72,7 @@ export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
               right: '0.5rem',  /* Tucked into the edge */
               width: '3rem',
               height: '3rem',
+              padding: 0,
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
@@ -82,7 +83,7 @@ export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
             onClick={() => setIsOpen(true)}
             title="AIに質問する"
           >
-            <MessageCircle size={22} />
+            <Bot size={24} color="white" />
           </button>
         </div>
       )}

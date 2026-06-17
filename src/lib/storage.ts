@@ -89,7 +89,24 @@ export const Storage = {
   
   getCustomDrillSets(): CustomDrillSet[] {
     const data = localStorage.getItem('custom_drill_sets');
-    return data ? JSON.parse(data) : [];
+    if (data) return JSON.parse(data);
+    return [{
+      id: "test-set-1",
+      title: "テストデータ",
+      subject: "英語",
+      topic: "テスト",
+      createdAt: Date.now(),
+      questions: [{
+        subject: "英語",
+        topic: "テスト",
+        questionText: "_______ is your favorite color?",
+        choices: ["What", "Who", "Where", "When"],
+        correctAnswer: "What",
+        explanation: "色を尋ねるときはWhatを使います。",
+        hint1: "「何」を意味する単語です",
+        hint2: "Wから始まります"
+      }]
+    }];
   },
   
   saveCustomDrillSet(drillSet: CustomDrillSet) {
