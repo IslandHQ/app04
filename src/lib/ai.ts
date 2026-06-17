@@ -92,3 +92,54 @@ ${duplicationPreventionPrompt}
 
   return [];
 }
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export async function chatWithTutor(
+  messages: ChatMessage[],
+  currentQuestion: DrillQuestion
+): Promise<string | null> {
+  const settings = Storage.getSettings();
+  if (!settings.apiKey) return null;
+
+  const openai = new OpenAI({
+    apiKey: settings.apiKey,
+    baseURL: settings.endpoint,
+    dangerouslyAllowBrowser: true
+  });
+
+  const systemPrompt = `あなたはソクラテス式の質問手法を用いる優秀なAI家庭教師です。
+現在ユーザーが解いている問題は以下の通りです：
+
+教科: ${currentQuestion.subject}
+単元: ${currentQuestion.topic}
+問題: ${currentQuestion.questionText}
+選択肢: ${currentQuestion.choices.join(', ')}
+正解: ${currentQuestion.correctAnswer}
+解説: ${currentQuestion.explanation}
+
+ユーザーはあなたに質問をしてきます。
+以下のルールに必ず従ってください：
+1. ユーザーに対して「直接的な答え」や「正解（${currentQuestion.correctAnswer}）」を絶対に教えないでください。
+2. ユーザーが自分で考え、答えを導き出せるように、ヒントや質問を投げかけてください。
+3. 対話的で、ユーザーの理解度に応じた親しみやすいトーンで接してください。
+4. ユーザーが正解にたどり着いた場合は、大いに褒めてください。`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: settings.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages
+      ]
+    });
+
+    return response.choices[0]?.message?.content || null;
+  } catch (error) {
+    console.error('Chat error:', error);
+    return null;
+  }
+}

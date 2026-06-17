@@ -3,6 +3,7 @@ import { Lightbulb, CheckCircle2, XCircle, ArrowRight, Bot, Loader2, MessageSqua
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { generateDrills, type DrillQuestion } from '../lib/ai';
 import { Storage } from '../lib/storage';
+import AIChatModal from '../components/AIChatModal';
 
 export default function DrillPage() {
   const [questionQueue, setQuestionQueue] = useState<DrillQuestion[]>([]);
@@ -337,6 +338,8 @@ export default function DrillPage() {
           )}
         </div>
       </div>
+      
+      {question && <AIChatModal currentQuestion={question} />}
     </div>
   );
 }
