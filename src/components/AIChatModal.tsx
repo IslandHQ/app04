@@ -57,10 +57,10 @@ export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
           className="btn btn-primary animate-fade-in"
           style={{
             position: 'fixed',
-            bottom: '2rem',
-            right: '2rem',
-            width: '4rem',
-            height: '4rem',
+            bottom: '5rem', /* Above bottom nav */
+            right: 'max(1rem, calc(50vw - 220px))', /* Align with max-width 480px container */
+            width: '3.5rem',
+            height: '3.5rem',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
@@ -71,28 +71,49 @@ export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
           onClick={() => setIsOpen(true)}
           title="AIに質問する"
         >
-          <MessageCircle size={32} />
+          <MessageCircle size={28} />
         </button>
       )}
 
-      {/* Chat Window */}
+      {/* Backdrop */}
+      {isOpen && (
+        <div
+          className="animate-fade-in"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 999,
+            backdropFilter: 'blur(2px)'
+          }}
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* Chat Window (Bottom Sheet) */}
       {isOpen && (
         <div
           className="glass-panel animate-slide-up"
           style={{
             position: 'fixed',
-            bottom: '2rem',
-            right: '2rem',
-            width: '350px',
-            maxWidth: 'calc(100vw - 4rem)',
-            height: '500px',
-            maxHeight: 'calc(100vh - 4rem)',
+            bottom: 0,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '100%',
+            maxWidth: '480px',
+            height: '75vh',
             display: 'flex',
             flexDirection: 'column',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-            zIndex: 50,
-            overflow: 'hidden'
+            boxShadow: '0 -10px 25px -5px rgba(0, 0, 0, 0.2)',
+            zIndex: 1000,
+            overflow: 'hidden',
+            borderBottomLeftRadius: 0,
+            borderBottomRightRadius: 0
           }}
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div style={{
@@ -112,15 +133,18 @@ export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
             <button
               onClick={() => setIsOpen(false)}
               style={{
-                background: 'transparent',
+                background: 'rgba(255, 255, 255, 0.2)',
                 border: 'none',
                 color: 'white',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '0.25rem'
+                padding: '0.4rem',
+                borderRadius: '50%',
+                transition: 'background 0.2s'
               }}
+              title="閉じる"
             >
               <X size={20} />
             </button>
