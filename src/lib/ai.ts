@@ -143,3 +143,65 @@ export async function chatWithTutor(
     return null;
   }
 }
+
+export async function generateUserSummary(
+  userData: any,
+  records: any[],
+  chatLogs: any[]
+): Promise<string> {
+  const settings = await Storage.getSettings();
+  if (!settings.apiKey) return 'AIの設定（APIキー等）が完了していません。設定画面からAPIキーを登録してください。';
+
+  const openai = new OpenAI({
+    apiKey: settings.apiKey,
+    baseURL: settings.endpoint,
+    dangerouslyAllowBrowser: true
+  });
+
+  // データをAI向けに整形
+  const recentRecords = records.slice(-7); // 最近7日分
+  const recordsText = recentRecords.map(r => 
+    `${r.name || r.date}: 学習${r.time || r.studyMinutes}分, ${r.totalQuestions}問中${r.correctAnswers}問正解`
+  ).join('\n');
+
+  const recentChats = chatLogs.slice(0, 5); // 直近5件のチャット
+  const chatsText = recentChats.map(log => {
+    const interaction = log.chat_history.map((msg: any) => `${msg.role === 'user' ? '生徒' : 'AI'}: ${msg.content}`).join('\n');
+    return `【${log.subject} - ${log.topic}】\n${interaction}`;
+  }).join('\n\n');
+
+  const systemPrompt = `あなたは優秀な学習アドバイザー（教育メンター）です。
+以下の生徒の「基本情報」「直近の学習記録」「AIチューターとのチャット履歴」を分析し、保護者や管理者向けにこの生徒の現在の学習状況の要約と、今後のアドバイスを簡潔にまとめてください。
+
+【基本情報】
+名前: ${userData.name}
+学年: ${userData.grade}
+現在のレベル: Lv.${userData.level}
+連続学習日数: ${userData.streak}日
+
+【直近の学習記録】
+${recordsText || '記録なし'}
+
+【最近のAIチューターとの会話】
+${chatsText || '会話なし'}
+
+【出力の指示】
+1. 良い点（褒めるべき点）を具体的に1〜2文で挙げてください。
+2. 課題点やつまずきやすい傾向（もしあれば）を1〜2文で指摘してください。
+3. 今後の具体的な学習アドバイスを提案してください。
+4. Markdown形式を使わずに、プレーンテキストで親しみやすい丁寧なトーンで出力してください。`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: settings.model,
+      messages: [
+        { role: 'user', content: systemPrompt }
+      ]
+    });
+
+    return response.choices[0]?.message?.content || '要約の生成に失敗しました。';
+  } catch (error) {
+    console.error('Summary error:', error);
+    return '要約の生成中にエラーが発生しました。';
+  }
+}

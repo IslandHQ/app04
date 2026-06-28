@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { Clock, CheckSquare, Target, AlertTriangle, Users, ChevronLeft, MessageSquare, Bot, User as UserIcon } from 'lucide-react';
+import { Clock, CheckSquare, Target, AlertTriangle, Users, ChevronLeft, MessageSquare, Bot, User as UserIcon, Sparkles } from 'lucide-react';
 import { Storage, type UserData } from '../lib/storage';
+import { generateUserSummary } from '../lib/ai';
 import { useAuth } from '../contexts/AuthContext';
 
 interface ChartData {
@@ -23,6 +24,24 @@ export default function DashboardPage() {
   const [records, setRecords] = useState<ChartData[]>([]);
   const [userData, setUserData] = useState<UserData | null>(null);
 
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [summaryText, setSummaryText] = useState<string | null>(null);
+
+  const handleGenerateSummary = async () => {
+    if (!userData) return;
+    setIsGeneratingSummary(true);
+    setSummaryText(null);
+    try {
+      const text = await generateUserSummary(userData, records, adminChatLogs);
+      setSummaryText(text);
+    } catch (e) {
+      console.error(e);
+      setSummaryText('要約の生成に失敗しました。');
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
   useEffect(() => {
     async function load() {
       try {
@@ -36,6 +55,7 @@ export default function DashboardPage() {
         let targetUser: any = null;
 
         if (user?.role === 'admin' && selectedUserId) {
+          setSummaryText(null);
           rawRecords = await Storage.getAdminUserRecords(selectedUserId);
           const cLogs = await Storage.getAdminUserChatLogs(selectedUserId);
           setAdminChatLogs(cLogs);
@@ -169,12 +189,40 @@ export default function DashboardPage() {
         </button>
       )}
 
-      <header style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.5rem' }}>
-          {user?.role === 'admin' && selectedUserId ? `${userData?.name} さんのデータ` : '保護者用ダッシュボード'}
-        </h1>
-        <p style={{ color: 'var(--text-muted)' }}>今週の学習状況</p>
+      <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.5rem' }}>
+            {user?.role === 'admin' && selectedUserId ? `${userData?.name} さんのデータ` : '保護者用ダッシュボード'}
+          </h1>
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>今週の学習状況</p>
+        </div>
+        {user?.role === 'admin' && selectedUserId && (
+          <button 
+            className="btn btn-primary" 
+            onClick={handleGenerateSummary}
+            disabled={isGeneratingSummary}
+            style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}
+          >
+            {isGeneratingSummary ? (
+              <span className="spinner" style={{ width: '18px', height: '18px', borderWidth: '2px' }}></span>
+            ) : (
+              <Sparkles size={18} />
+            )}
+            {isGeneratingSummary ? '要約生成中...' : 'AIによる学習要約'}
+          </button>
+        )}
       </header>
+
+      {summaryText && (
+        <div className="glass-panel animate-slide-up" style={{ padding: '1.5rem', marginBottom: '2rem', borderLeft: '4px solid var(--accent)' }}>
+          <h3 style={{ fontSize: '1.125rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent)' }}>
+            <Sparkles size={20} /> 学習状況のアドバイス
+          </h3>
+          <div style={{ fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--text)' }}>
+            {summaryText}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2rem' }}>
         <div className="glass-panel" style={{ padding: '1.25rem' }}>
