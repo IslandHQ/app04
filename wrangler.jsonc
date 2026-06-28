@@ -1,14 +1,28 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "app04",
+  "main": "server/index.ts",
   "compatibility_date": "2026-06-07",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "observability": {
     "enabled": true
   },
   "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
-  "compatibility_flags": [
-    "nodejs_compat"
+  "build": {
+    "command": "bun run build",
+    "watch_dir": "src"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "app04-db",
+      "database_id": "local"
+    }
   ]
 }

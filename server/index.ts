@@ -1,14 +1,19 @@
 import { Hono } from 'hono';
-import { serve } from 'bun';
-import { db, initDB } from './db';
 import { sign, verify } from 'hono/jwt';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
+import { hashPassword, verifyPassword } from './auth';
 
-// Initialize the database schema
-initDB();
+type Bindings = {
+  DB: D1Database;
+  JWT_SECRET?: string;
+  NODE_ENV?: string;
+};
 
-const app = new Hono();
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_for_dev_only';
+type Variables = {
+  user: any;
+};
+
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // --- Authentication Middleware ---
 const authMiddleware = async (c: any, next: any) => {
@@ -16,8 +21,9 @@ const authMiddleware = async (c: any, next: any) => {
   if (!token) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
+  const secret = c.env.JWT_SECRET || 'super_secret_key_for_dev_only';
   try {
-    const payload = await verify(token, JWT_SECRET, 'HS256');
+    const payload = await verify(token, secret, 'HS256');
     c.set('user', payload);
     await next();
   } catch (err) {
@@ -44,31 +50,33 @@ app.post('/api/auth/signup', async (c) => {
     return c.json({ error: 'Missing required fields' }, 400);
   }
 
-  const existingUser = db.query('SELECT id FROM users WHERE email = ?').get(email);
+  const existingUser = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
   if (existingUser) {
     return c.json({ error: 'Email already exists' }, 400);
   }
 
-  const password_hash = await Bun.password.hash(password, { algorithm: "bcrypt", cost: 10 });
+  const password_hash = await hashPassword(password);
   const id = crypto.randomUUID();
   const created_at = new Date().toISOString();
   
-  const userCount = (db.query('SELECT COUNT(*) as count FROM users').get() as any).count;
+  const userCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users').first() as any;
+  const userCount = userCountResult?.count || 0;
   const role = userCount === 0 ? 'admin' : 'user';
 
   try {
-    db.run(
-      'INSERT INTO users (id, email, password_hash, name, grade, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, email, password_hash, name, grade || '中1', role, created_at]
-    );
+    await c.env.DB.prepare(
+      'INSERT INTO users (id, email, password_hash, name, grade, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(id, email, password_hash, name, grade || '中1', role, created_at).run();
 
-    const token = await sign({ id, email, role, name }, JWT_SECRET);
+    const secret = c.env.JWT_SECRET || 'super_secret_key_for_dev_only';
+    const token = await sign({ id, email, role, name }, secret);
     setCookie(c, 'auth_token', token, {
-      httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'Strict', path: '/'
+      httpOnly: true, secure: c.env.NODE_ENV === 'production', sameSite: 'Strict', path: '/'
     });
 
-    return c.json({ message: 'User created successfully', user: { id, email, name, grade: grade || '中1', role: 'user' } });
+    return c.json({ message: 'User created successfully', user: { id, email, name, grade: grade || '中1', role } });
   } catch (err) {
+    console.error(err);
     return c.json({ error: 'Failed to create user' }, 500);
   }
 });
@@ -79,15 +87,16 @@ app.post('/api/auth/login', async (c) => {
 
   if (!email || !password) return c.json({ error: 'Missing email or password' }, 400);
 
-  const user = db.query('SELECT * FROM users WHERE email = ?').get(email) as any;
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first() as any;
   if (!user) return c.json({ error: 'Invalid credentials' }, 401);
 
-  const isMatch = await Bun.password.verify(password, user.password_hash);
+  const isMatch = await verifyPassword(password, user.password_hash);
   if (!isMatch) return c.json({ error: 'Invalid credentials' }, 401);
 
-  const token = await sign({ id: user.id, email: user.email, role: user.role, name: user.name }, JWT_SECRET);
+  const secret = c.env.JWT_SECRET || 'super_secret_key_for_dev_only';
+  const token = await sign({ id: user.id, email: user.email, role: user.role, name: user.name }, secret);
   setCookie(c, 'auth_token', token, {
-    httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'Strict', path: '/'
+    httpOnly: true, secure: c.env.NODE_ENV === 'production', sameSite: 'Strict', path: '/'
   });
 
   delete user.password_hash;
@@ -99,13 +108,11 @@ app.post('/api/auth/logout', (c) => {
   return c.json({ message: 'Logout successful' });
 });
 
-app.get('/api/auth/me', authMiddleware, (c) => {
+app.get('/api/auth/me', authMiddleware, async (c) => {
   const payload = c.get('user');
-  const user = db.query('SELECT id, email, role, name, grade, level, exp, streak, last_study_date, created_at FROM users WHERE id = ?').get(payload.id) as any;
+  const user = await c.env.DB.prepare('SELECT id, email, role, name, grade, level, exp, streak, last_study_date, created_at FROM users WHERE id = ?').bind(payload.id).first() as any;
   if (!user) return c.json({ error: 'User not found' }, 404);
 
-  // Load topicStats and detailedStats (In real app we should have tables for these, but we'll mock or load from other tables)
-  // For now we'll just parse them if we added columns, but let's query daily_records or chat_logs.
   user.topicStats = {};
   user.detailedStats = {};
   return c.json({ user });
@@ -114,13 +121,13 @@ app.get('/api/auth/me', authMiddleware, (c) => {
 // --- API Routes (Protected) ---
 app.use('/api/*', authMiddleware);
 
-app.get('/api/settings', (c) => {
-  let dbSettings = db.query('SELECT * FROM system_settings LIMIT 1').get() as any;
+app.get('/api/settings', async (c) => {
+  let dbSettings = await c.env.DB.prepare('SELECT * FROM system_settings LIMIT 1').first() as any;
   if (!dbSettings) {
     return c.json({ 
-      endpoint: process.env.API || 'https://api.openai.com/v1', 
-      apiKey: process.env.API_KEY || '', 
-      model: process.env.MODEL_NAME || 'gpt-4o', 
+      endpoint: 'https://api.openai.com/v1', 
+      apiKey: '', 
+      model: 'gpt-4o', 
       duplicatePreventionMode: 'seed' 
     });
   }
@@ -139,11 +146,11 @@ app.put('/api/settings', adminMiddleware, async (c) => {
   const model = body.model || 'gpt-4o';
   const duplicatePreventionMode = body.duplicatePreventionMode || 'seed';
   
-  db.run('DELETE FROM system_settings');
-  db.run(
-    'INSERT INTO system_settings (id, endpoint, api_key, model, duplicate_prevention_mode) VALUES (?, ?, ?, ?, ?)',
-    ['default', endpoint, apiKey, model, duplicatePreventionMode]
-  );
+  await c.env.DB.prepare('DELETE FROM system_settings').run();
+  await c.env.DB.prepare(
+    'INSERT INTO system_settings (id, endpoint, api_key, model, duplicate_prevention_mode) VALUES (?, ?, ?, ?, ?)'
+  ).bind('default', endpoint, apiKey, model, duplicatePreventionMode).run();
+  
   return c.json({ message: 'Settings updated' });
 });
 
@@ -152,7 +159,7 @@ app.put('/api/user', async (c) => {
   const user = c.get('user');
   const body = await c.req.json();
   const { name, grade } = body;
-  db.run('UPDATE users SET name = ?, grade = ? WHERE id = ?', [name, grade, user.id]);
+  await c.env.DB.prepare('UPDATE users SET name = ?, grade = ? WHERE id = ?').bind(name, grade, user.id).run();
   return c.json({ message: 'User updated' });
 });
 
@@ -163,9 +170,9 @@ app.post('/api/study_result', async (c) => {
   const { subject, topic, minutes, isCorrect } = body;
   const today = new Date().toISOString().split('T')[0];
 
-  const dbUser = db.query('SELECT * FROM users WHERE id = ?').get(user.id) as any;
+  const dbUser = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(user.id).first() as any;
   
-  let todayRecord = db.query('SELECT * FROM daily_records WHERE user_id = ? AND date = ?').get(user.id, today) as any;
+  let todayRecord = await c.env.DB.prepare('SELECT * FROM daily_records WHERE user_id = ? AND date = ?').bind(user.id, today).first() as any;
   
   let streak = dbUser.streak;
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -173,15 +180,13 @@ app.post('/api/study_result', async (c) => {
     if (dbUser.last_study_date === yesterday) streak += 1;
     else if (dbUser.last_study_date !== today) streak = 1;
     
-    db.run(
-      'INSERT INTO daily_records (id, user_id, date, study_minutes, total_questions, correct_answers) VALUES (?, ?, ?, ?, ?, ?)',
-      [crypto.randomUUID(), user.id, today, minutes, 1, isCorrect ? 1 : 0]
-    );
+    await c.env.DB.prepare(
+      'INSERT INTO daily_records (id, user_id, date, study_minutes, total_questions, correct_answers) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(crypto.randomUUID(), user.id, today, minutes, 1, isCorrect ? 1 : 0).run();
   } else {
-    db.run(
-      'UPDATE daily_records SET study_minutes = study_minutes + ?, total_questions = total_questions + 1, correct_answers = correct_answers + ? WHERE id = ?',
-      [minutes, isCorrect ? 1 : 0, todayRecord.id]
-    );
+    await c.env.DB.prepare(
+      'UPDATE daily_records SET study_minutes = study_minutes + ?, total_questions = total_questions + 1, correct_answers = correct_answers + ? WHERE id = ?'
+    ).bind(minutes, isCorrect ? 1 : 0, todayRecord.id).run();
   }
 
   const gainedExp = isCorrect ? 10 : 2;
@@ -196,45 +201,45 @@ app.post('/api/study_result', async (c) => {
     leveledUp = true;
   }
 
-  db.run(
-    'UPDATE users SET exp = ?, level = ?, streak = ?, last_study_date = ? WHERE id = ?',
-    [newExp, newLevel, streak, today, user.id]
-  );
+  await c.env.DB.prepare(
+    'UPDATE users SET exp = ?, level = ?, streak = ?, last_study_date = ? WHERE id = ?'
+  ).bind(newExp, newLevel, streak, today, user.id).run();
 
   return c.json({ gainedExp, leveledUp });
 });
 
 // Daily Records
-app.get('/api/daily_records', (c) => {
+app.get('/api/daily_records', async (c) => {
   const user = c.get('user');
-  const records = db.query('SELECT * FROM daily_records WHERE user_id = ? ORDER BY date ASC').all();
-  return c.json(records);
+  const result = await c.env.DB.prepare('SELECT * FROM daily_records WHERE user_id = ? ORDER BY date ASC').bind(user.id).all();
+  return c.json(result.results);
 });
 
 // Admin APIs
-app.get('/api/admin/users', adminMiddleware, (c) => {
-  const users = db.query('SELECT id, name, email, role, grade, level, exp, streak, last_study_date, created_at FROM users ORDER BY created_at DESC').all();
-  return c.json(users);
+app.get('/api/admin/users', adminMiddleware, async (c) => {
+  const result = await c.env.DB.prepare('SELECT id, name, email, role, grade, level, exp, streak, last_study_date, created_at FROM users ORDER BY created_at DESC').all();
+  return c.json(result.results);
 });
 
-app.get('/api/admin/users/:id/records', adminMiddleware, (c) => {
+app.get('/api/admin/users/:id/records', adminMiddleware, async (c) => {
   const userId = c.req.param('id');
-  const records = db.query('SELECT * FROM daily_records WHERE user_id = ? ORDER BY date ASC').all(userId);
-  return c.json(records);
+  const result = await c.env.DB.prepare('SELECT * FROM daily_records WHERE user_id = ? ORDER BY date ASC').bind(userId).all();
+  return c.json(result.results);
 });
 
-app.get('/api/admin/users/:id/chat_logs', adminMiddleware, (c) => {
+app.get('/api/admin/users/:id/chat_logs', adminMiddleware, async (c) => {
   const userId = c.req.param('id');
-  const logs = db.query('SELECT * FROM chat_logs WHERE user_id = ? ORDER BY created_at DESC').all(userId) as any[];
+  const result = await c.env.DB.prepare('SELECT * FROM chat_logs WHERE user_id = ? ORDER BY created_at DESC').bind(userId).all();
+  const logs = result.results as any[];
   const formatted = logs.map(l => ({ ...l, chat_history: JSON.parse(l.chat_history) }));
   return c.json(formatted);
 });
 
 // Custom Drills
-app.get('/api/custom_drills', (c) => {
+app.get('/api/custom_drills', async (c) => {
   const user = c.get('user');
-  // Return user's drills + public drills
-  const drills = db.query('SELECT * FROM custom_drill_sets WHERE user_id = ? OR is_public = 1').all() as any[];
+  const result = await c.env.DB.prepare('SELECT * FROM custom_drill_sets WHERE user_id = ? OR is_public = 1').bind(user.id).all();
+  const drills = result.results as any[];
   const formatted = drills.map(d => ({
     ...d,
     questions: JSON.parse(d.questions),
@@ -249,35 +254,31 @@ app.post('/api/custom_drills', async (c) => {
   const body = await c.req.json();
   const { id, title, subject, topic, questions, is_public } = body;
   
-  const existing = db.query('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').get(id) as any;
+  const existing = await c.env.DB.prepare('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').bind(id).first() as any;
   if (existing) {
     if (existing.user_id !== user.id) return c.json({ error: 'Forbidden' }, 403);
-    db.run(
-      'UPDATE custom_drill_sets SET title = ?, subject = ?, topic = ?, questions = ?, is_public = ? WHERE id = ?',
-      [title, subject, topic, JSON.stringify(questions), is_public ? 1 : 0, id]
-    );
+    await c.env.DB.prepare(
+      'UPDATE custom_drill_sets SET title = ?, subject = ?, topic = ?, questions = ?, is_public = ? WHERE id = ?'
+    ).bind(title, subject, topic, JSON.stringify(questions), is_public ? 1 : 0, id).run();
   } else {
-    db.run(
-      'INSERT INTO custom_drill_sets (id, user_id, title, subject, topic, questions, is_public, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, user.id, title, subject, topic, JSON.stringify(questions), is_public ? 1 : 0, new Date().toISOString()]
-    );
+    await c.env.DB.prepare(
+      'INSERT INTO custom_drill_sets (id, user_id, title, subject, topic, questions, is_public, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(id, user.id, title, subject, topic, JSON.stringify(questions), is_public ? 1 : 0, new Date().toISOString()).run();
   }
   return c.json({ message: 'Saved' });
 });
 
-app.delete('/api/custom_drills/:id', (c) => {
+app.delete('/api/custom_drills/:id', async (c) => {
   const user = c.get('user');
   if (user.role !== 'admin') return c.json({ error: 'Forbidden: Admins only' }, 403);
   const id = c.req.param('id');
-  const existing = db.query('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').get(id) as any;
+  const existing = await c.env.DB.prepare('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').bind(id).first() as any;
   if (existing && existing.user_id === user.id) {
-    db.run('DELETE FROM custom_drill_sets WHERE id = ?', [id]);
+    await c.env.DB.prepare('DELETE FROM custom_drill_sets WHERE id = ?').bind(id).run();
   }
   return c.json({ message: 'Deleted' });
 });
 
-// Setup Bun.serve wrapper
-const port = process.env.PORT || 3001;
 app.post('/api/chat_logs', async (c) => {
   const user = c.get('user');
   const body = await c.req.json();
@@ -287,17 +288,14 @@ app.post('/api/chat_logs', async (c) => {
 
   const id = crypto.randomUUID();
   try {
-    db.run(
-      'INSERT INTO chat_logs (id, user_id, subject, topic, chat_history, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, user.id, subject, topic, JSON.stringify(chatHistory), new Date().toISOString()]
-    );
+    await c.env.DB.prepare(
+      'INSERT INTO chat_logs (id, user_id, subject, topic, chat_history, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(id, user.id, subject, topic, JSON.stringify(chatHistory), new Date().toISOString()).run();
     return c.json({ success: true, id });
   } catch (err) {
+    console.error(err);
     return c.json({ error: 'Failed to save chat log' }, 500);
   }
 });
 
-export default {
-  port: 3001,
-  fetch: app.fetch,
-};
+export default app;

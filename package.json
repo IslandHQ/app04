@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "wrangler dev",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "bun run build && wrangler dev",
@@ -34,6 +34,6 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12",
-    "wrangler": "^4.98.0"
+    "wrangler": "^4.105.0"
   }
 }
