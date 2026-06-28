@@ -25,6 +25,7 @@ export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
 
   // If question changes, reset chat
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMessages([]);
     setIsOpen(false);
   }, [currentQuestion]);

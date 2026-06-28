@@ -9,9 +9,26 @@ export default function HomePage() {
   const [customSets, setCustomSets] = useState<CustomDrillSet[]>([]);
 
   useEffect(() => {
-    setUserData(Storage.getUserData());
-    setHasApiKey(!!Storage.getSettings().apiKey);
-    setCustomSets(Storage.getCustomDrillSets());
+    let isMounted = true;
+
+    async function loadHomeData() {
+      const [storedUserData, settings, storedCustomSets] = await Promise.all([
+        Storage.getUserData(),
+        Storage.getSettings(),
+        Storage.getCustomDrillSets()
+      ]);
+
+      if (!isMounted) return;
+      setUserData(storedUserData);
+      setHasApiKey(!!settings.apiKey);
+      setCustomSets(storedCustomSets);
+    }
+
+    void loadHomeData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   if (!userData) return null;

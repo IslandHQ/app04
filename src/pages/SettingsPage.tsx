@@ -22,8 +22,24 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    setSettings(Storage.getSettings());
-    setUserData(Storage.getUserData());
+    let isMounted = true;
+
+    async function loadSettings() {
+      const [storedSettings, storedUserData] = await Promise.all([
+        Storage.getSettings(),
+        Storage.getUserData()
+      ]);
+
+      if (!isMounted) return;
+      setSettings(storedSettings);
+      setUserData(storedUserData);
+    }
+
+    void loadSettings();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleChange = (field: keyof AISettings) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -34,10 +50,12 @@ export default function SettingsPage() {
     setUserData(prev => ({ ...prev, [field]: e.target.value }));
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    Storage.saveSettings(settings);
-    Storage.saveUserData(userData);
+    await Promise.all([
+      Storage.saveSettings(settings),
+      Storage.saveUserData(userData)
+    ]);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };

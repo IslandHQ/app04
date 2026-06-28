@@ -32,6 +32,10 @@ export default function DrillPage() {
   const subjectParam = searchParams.get('subject') || '数学';
   const topicParam = searchParams.get('topic');
 
+  const getErrorMessage = (error: unknown) => {
+    return error instanceof Error ? error.message : String(error);
+  };
+
   const fetchQuestions = async () => {
     if (isFetchingRef.current) return;
     
@@ -40,7 +44,7 @@ export default function DrillPage() {
       if (queueRef.current.length > 0 || isAnswered || question) return; // 既にロード済みなら何もしない
       isFetchingRef.current = true;
       
-      const customSets = Storage.getCustomDrillSets();
+      const customSets = await Storage.getCustomDrillSets();
       const targetSet = customSets.find(s => s.id === setIdParam);
       
       if (targetSet && targetSet.questions.length > 0) {
@@ -67,7 +71,7 @@ export default function DrillPage() {
       if (subjectParam === '国語') topic = "漢字の読み書きや四字熟語、ことわざ";
     }
 
-    const settings = Storage.getSettings();
+    const settings = await Storage.getSettings();
 
     // ストックが3問になるまで1問ずつ補充
     while (true) {
@@ -114,14 +118,14 @@ export default function DrillPage() {
           }
           break;
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(`[AI生成] ${targetIndex}問目の補充に失敗:`, error);
 
         if (!question && queueRef.current.length === 0) {
           const errorQuestion: DrillQuestion = {
             subject: subjectParam,
             topic: "通信エラー",
-            questionText: `APIへの接続に失敗しました。\n\n詳細: ${error.message}\n\n・設定画面のエンドポイントURLが正しいか確認してください。`,
+            questionText: `APIへの接続に失敗しました。\n\n詳細: ${getErrorMessage(error)}\n\n・設定画面のエンドポイントURLが正しいか確認してください。`,
             choices: ["設定を確認する", "やり直す", "ヘルプを見る", "閉じる"],
             correctAnswer: "",
             explanation: "設定画面からURLとAPIキーを見直してください。",
@@ -149,6 +153,7 @@ export default function DrillPage() {
   useEffect(() => {
     if (!question && questionQueue.length > 0) {
       const nextQ = questionQueue[0];
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuestion(nextQ);
       queueRef.current = queueRef.current.slice(1);
       setQuestionQueue([...queueRef.current]);
@@ -170,9 +175,10 @@ export default function DrillPage() {
     setFeedback(question.explanation);
     
     // 学習記録の保存
+    // eslint-disable-next-line react-hooks/purity
     const timeSpentMs = Date.now() - startTimeRef.current;
     const timeSpentMin = Math.max(1, Math.round(timeSpentMs / 60000));
-    const studyRecordResult = Storage.addStudyResult(subjectParam, question.topic, timeSpentMin, isCorrectAnswer);
+    const studyRecordResult = await Storage.addStudyResult(subjectParam, question.topic, timeSpentMin, isCorrectAnswer);
     setExpResult(studyRecordResult);
   };
 

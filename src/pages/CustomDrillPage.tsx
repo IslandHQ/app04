@@ -25,12 +25,17 @@ export default function CustomDrillPage() {
   const [setTitle, setSetTitle] = useState('');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
+  const loadSavedSets = async () => {
+    setSavedSets(await Storage.getCustomDrillSets());
+  };
+
   useEffect(() => {
-    loadSavedSets();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadSavedSets();
   }, []);
 
-  const loadSavedSets = () => {
-    setSavedSets(Storage.getCustomDrillSets());
+  const getErrorMessage = (error: unknown) => {
+    return error instanceof Error ? error.message : String(error);
   };
 
   const handleGenerate = async () => {
@@ -48,8 +53,8 @@ export default function CustomDrillPage() {
       } else {
         alert('問題の生成に失敗しました。');
       }
-    } catch (err: any) {
-      alert(`エラー: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`エラー: ${getErrorMessage(err)}`);
     } finally {
       setIsGenerating(false);
     }
@@ -67,14 +72,14 @@ export default function CustomDrillPage() {
       } else {
         alert('問題の生成に失敗しました。');
       }
-    } catch (err: any) {
-      alert(`エラー: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`エラー: ${getErrorMessage(err)}`);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const handleSaveSet = () => {
+  const handleSaveSet = async () => {
     if (!setTitle) return alert('タイトルを入力してください');
     if (generatedQuestions.length === 0) return alert('問題がありません');
     
@@ -86,8 +91,8 @@ export default function CustomDrillPage() {
       createdAt: editingSetId ? savedSets.find(s => s.id === editingSetId)?.createdAt || Date.now() : Date.now(),
       questions: generatedQuestions
     };
-    Storage.saveCustomDrillSet(newSet);
-    loadSavedSets();
+    await Storage.saveCustomDrillSet(newSet);
+    await loadSavedSets();
     setActiveTab('list');
     setEditingSetId(null);
     setGeneratedQuestions([]);
@@ -114,8 +119,10 @@ export default function CustomDrillPage() {
 
   const handleDelete = (id: string) => {
     if (window.confirm('本当に削除しますか？')) {
-      Storage.deleteCustomDrillSet(id);
-      loadSavedSets();
+      void (async () => {
+        await Storage.deleteCustomDrillSet(id);
+        await loadSavedSets();
+      })();
     }
   };
 
@@ -134,7 +141,7 @@ export default function CustomDrillPage() {
     }
   };
 
-  const updateCurrentQuestion = (field: keyof DrillQuestion, value: any) => {
+  const updateCurrentQuestion = (field: keyof DrillQuestion, value: DrillQuestion[keyof DrillQuestion]) => {
     const newQs = [...generatedQuestions];
     newQs[currentQuestionIndex] = { ...newQs[currentQuestionIndex], [field]: value };
     setGeneratedQuestions(newQs);

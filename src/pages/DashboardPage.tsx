@@ -15,26 +15,39 @@ export default function DashboardPage() {
   const [userData, setUserData] = useState<UserData | null>(null);
 
   useEffect(() => {
-    const rawRecords = Storage.getDailyRecords();
-    setUserData(Storage.getUserData());
-    
-    // 最近7日間のデータを作成
-    const today = new Date();
-    const last7Days: ChartData[] = Array.from({ length: 7 }).map((_, i) => {
-      const d = new Date(today);
-      d.setDate(d.getDate() - (6 - i));
-      const dateStr = d.toISOString().split('T')[0];
-      const rec = rawRecords.find(r => r.date === dateStr);
-      const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
-      return {
-        name: dayNames[d.getDay()],
-        time: rec ? rec.studyMinutes : 0,
-        totalQuestions: rec ? rec.totalQuestions : 0,
-        correctAnswers: rec ? rec.correctAnswers : 0
-      };
-    });
-    
-    setRecords(last7Days);
+    let isMounted = true;
+
+    async function loadDashboardData() {
+      const [rawRecords, storedUserData] = await Promise.all([
+        Storage.getDailyRecords(),
+        Storage.getUserData()
+      ]);
+
+      const today = new Date();
+      const last7Days: ChartData[] = Array.from({ length: 7 }).map((_, i) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() - (6 - i));
+        const dateStr = d.toISOString().split('T')[0];
+        const rec = rawRecords.find(r => r.date === dateStr);
+        const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+        return {
+          name: dayNames[d.getDay()],
+          time: rec ? rec.studyMinutes : 0,
+          totalQuestions: rec ? rec.totalQuestions : 0,
+          correctAnswers: rec ? rec.correctAnswers : 0
+        };
+      });
+
+      if (!isMounted) return;
+      setUserData(storedUserData);
+      setRecords(last7Days);
+    }
+
+    void loadDashboardData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const totalMinutes = records.reduce((sum, r) => sum + r.time, 0);
