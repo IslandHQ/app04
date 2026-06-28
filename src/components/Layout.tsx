@@ -1,7 +1,9 @@
 import { Outlet, NavLink } from 'react-router-dom';
 import { Home, BookOpen, LineChart, Settings, PenTool } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Layout() {
+  const { user } = useAuth();
   return (
     <div className="app-container">
       <div className="page-content">
@@ -17,10 +19,12 @@ export default function Layout() {
           <BookOpen size={24} />
           <span>ドリル</span>
         </NavLink>
-        <NavLink to="/custom" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-          <PenTool size={24} />
-          <span>作る</span>
-        </NavLink>
+        {user?.role === 'admin' && (
+          <NavLink to="/custom" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <PenTool size={24} />
+            <span>作る</span>
+          </NavLink>
+        )}
         <NavLink to="/dashboard" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <LineChart size={24} />
           <span>データ</span>

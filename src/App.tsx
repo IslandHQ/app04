@@ -5,8 +5,20 @@ import DrillPage from './pages/DrillPage';
 import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
 import CustomDrillPage from './pages/CustomDrillPage';
+import AuthPage from './pages/AuthPage';
+import { useAuth } from './contexts/AuthContext';
 
 function App() {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <div className="app-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>読み込み中...</div>;
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
   return (
     <Routes>
       <Route path="/" element={<Layout />}>

@@ -12,7 +12,6 @@ export interface DailyRecord {
   correctAnswers: number;
 }
 
-// ai.tsで定義されている型をインポート（型のみ）
 import type { DrillQuestion } from './ai';
 
 export interface CustomDrillSet {
@@ -22,6 +21,7 @@ export interface CustomDrillSet {
   topic: string;
   createdAt: number;
   questions: DrillQuestion[];
+  is_public?: boolean;
 }
 
 export interface UserData {
@@ -35,152 +35,115 @@ export interface UserData {
   detailedStats: Record<string, { total: number; correct: number }>;
 }
 
-const DEFAULT_SETTINGS: AISettings = {
-  endpoint: 'https://api.openai.com/v1',
-  apiKey: '',
-  model: 'gpt-4o',
-  duplicatePreventionMode: 'seed'
-};
-
-const DEFAULT_USER_DATA: UserData = {
-  grade: '中1',
-  name: 'たろう',
-  streak: 0,
-  lastStudyDate: '',
-  level: 1,
-  exp: 0,
-  topicStats: {},
-  detailedStats: {}
-};
-
 export const Storage = {
-  getSettings(): AISettings {
-    const data = localStorage.getItem('app_settings');
-    return data ? JSON.parse(data) : DEFAULT_SETTINGS;
+  async getSettings(): Promise<AISettings> {
+    const res = await fetch('/api/settings');
+    if (!res.ok) throw new Error('Failed to fetch settings');
+    return res.json();
   },
   
-  saveSettings(settings: AISettings) {
-    localStorage.setItem('app_settings', JSON.stringify(settings));
+  async saveSettings(settings: AISettings): Promise<void> {
+    await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    });
   },
   
-  getUserData(): UserData {
-    const data = localStorage.getItem('user_data');
-    const parsed = data ? JSON.parse(data) : DEFAULT_USER_DATA;
-    // 後方互換性のためのデフォルト値補完
-    if (parsed.level === undefined) parsed.level = 1;
-    if (parsed.exp === undefined) parsed.exp = 0;
-    if (!parsed.topicStats) parsed.topicStats = {};
-    if (!parsed.detailedStats) parsed.detailedStats = {};
-    return parsed;
+  async getUserData(): Promise<UserData> {
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) throw new Error('Failed to fetch user data');
+    const data = await res.json();
+    const user = data.user;
+    return {
+      grade: user.grade || '中1',
+      name: user.name,
+      streak: user.streak || 0,
+      lastStudyDate: user.last_study_date || '',
+      level: user.level || 1,
+      exp: user.exp || 0,
+      topicStats: user.topicStats || {},
+      detailedStats: user.detailedStats || {}
+    };
   },
   
-  saveUserData(userData: UserData) {
-    localStorage.setItem('user_data', JSON.stringify(userData));
+  async saveUserData(userData: UserData): Promise<void> {
+    await fetch('/api/user', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: userData.name, grade: userData.grade })
+    });
   },
   
-  getDailyRecords(): DailyRecord[] {
-    const data = localStorage.getItem('daily_records');
-    return data ? JSON.parse(data) : [];
+  async getDailyRecords(): Promise<DailyRecord[]> {
+    const res = await fetch('/api/daily_records');
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.map((d: any) => ({
+      date: d.date,
+      studyMinutes: d.study_minutes,
+      totalQuestions: d.total_questions,
+      correctAnswers: d.correct_answers
+    }));
   },
   
-  saveDailyRecords(records: DailyRecord[]) {
-    localStorage.setItem('daily_records', JSON.stringify(records));
+  async getCustomDrillSets(): Promise<CustomDrillSet[]> {
+    const res = await fetch('/api/custom_drills');
+    if (!res.ok) return [];
+    return res.json();
   },
   
-  getCustomDrillSets(): CustomDrillSet[] {
-    const data = localStorage.getItem('custom_drill_sets');
-    if (data) return JSON.parse(data);
-    return [{
-      id: "test-set-1",
-      title: "テストデータ",
-      subject: "英語",
-      topic: "テスト",
-      createdAt: Date.now(),
-      questions: [{
-        subject: "英語",
-        topic: "テスト",
-        questionText: "_______ is your favorite color?",
-        choices: ["What", "Who", "Where", "When"],
-        correctAnswer: "What",
-        explanation: "色を尋ねるときはWhatを使います。",
-        hint1: "「何」を意味する単語です",
-        hint2: "Wから始まります"
-      }]
-    }];
+  async saveCustomDrillSet(drillSet: CustomDrillSet): Promise<void> {
+    await fetch('/api/custom_drills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(drillSet)
+    });
   },
   
-  saveCustomDrillSet(drillSet: CustomDrillSet) {
-    const sets = this.getCustomDrillSets();
-    const existingIndex = sets.findIndex(s => s.id === drillSet.id);
-    if (existingIndex >= 0) {
-      sets[existingIndex] = drillSet;
-    } else {
-      sets.push(drillSet);
-    }
-    localStorage.setItem('custom_drill_sets', JSON.stringify(sets));
+  async deleteCustomDrillSet(id: string): Promise<void> {
+    await fetch(`/api/custom_drills/${id}`, { method: 'DELETE' });
   },
   
-  deleteCustomDrillSet(id: string) {
-    const sets = this.getCustomDrillSets();
-    const filtered = sets.filter(s => s.id !== id);
-    localStorage.setItem('custom_drill_sets', JSON.stringify(filtered));
+  async addStudyResult(subject: string, topic: string, minutes: number, isCorrect: boolean): Promise<{ gainedExp: number, leveledUp: boolean }> {
+    const res = await fetch('/api/study_result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject, topic, minutes, isCorrect })
+    });
+    if (!res.ok) throw new Error('Failed to add study result');
+    return res.json();
   },
   
-  addStudyResult(subject: string, topic: string, minutes: number, isCorrect: boolean): { gainedExp: number, leveledUp: boolean } {
-    const today = new Date().toISOString().split('T')[0];
-    const records = this.getDailyRecords();
-    let todayRecord = records.find(r => r.date === today);
-    const userData = this.getUserData();
-    
-    if (!todayRecord) {
-      todayRecord = { date: today, studyMinutes: 0, totalQuestions: 0, correctAnswers: 0 };
-      records.push(todayRecord);
-      
-      // Update streak
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-      if (userData.lastStudyDate === yesterday) {
-        userData.streak += 1;
-      } else if (userData.lastStudyDate !== today) {
-        userData.streak = 1;
-      }
-      userData.lastStudyDate = today;
-    }
-    
-    todayRecord.studyMinutes += minutes;
-    todayRecord.totalQuestions += 1;
-    if (isCorrect) todayRecord.correctAnswers += 1;
-    
-    this.saveDailyRecords(records);
+  async saveChatLog(subject: string, topic: string, chatHistory: any[]): Promise<void> {
+    await fetch('/api/chat_logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject, topic, chatHistory })
+    });
+  },
+  
+  async getAdminUsers(): Promise<any[]> {
+    const res = await fetch('/api/admin/users');
+    if (!res.ok) throw new Error('Failed to fetch admin users');
+    return res.json();
+  },
 
-    // Update EXP and Level
-    const gainedExp = isCorrect ? 10 : 2;
-    userData.exp += gainedExp;
-    
-    let leveledUp = false;
-    const expNeeded = userData.level * 50;
-    if (userData.exp >= expNeeded) {
-      userData.level += 1;
-      userData.exp -= expNeeded;
-      leveledUp = true;
-    }
+  async getAdminUserRecords(userId: string): Promise<DailyRecord[]> {
+    const res = await fetch(`/api/admin/users/${userId}/records`);
+    if (!res.ok) throw new Error('Failed to fetch admin user records');
+    const records = await res.json();
+    return records.map((r: any) => ({
+      date: r.date,
+      studyMinutes: r.study_minutes,
+      totalQuestions: r.total_questions,
+      correctAnswers: r.correct_answers
+    }));
+  },
 
-    // Update Stats
-    if (!userData.topicStats[subject]) {
-      userData.topicStats[subject] = { total: 0, correct: 0 };
-    }
-    userData.topicStats[subject].total += 1;
-    if (isCorrect) userData.topicStats[subject].correct += 1;
-
-    // Update Detailed Stats
-    const topicKey = `${subject}:${topic}`;
-    if (!userData.detailedStats[topicKey]) {
-      userData.detailedStats[topicKey] = { total: 0, correct: 0 };
-    }
-    userData.detailedStats[topicKey].total += 1;
-    if (isCorrect) userData.detailedStats[topicKey].correct += 1;
-
-    this.saveUserData(userData);
-
-    return { gainedExp, leveledUp };
+  async getAdminUserChatLogs(userId: string): Promise<any[]> {
+    const res = await fetch(`/api/admin/users/${userId}/chat_logs`);
+    if (!res.ok) throw new Error('Failed to fetch admin chat logs');
+    return res.json();
   }
 };

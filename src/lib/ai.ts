@@ -20,7 +20,7 @@ export async function generateDrills(
   seed?: number | string,
   customInstructions?: string
 ): Promise<DrillQuestion[]> {
-  const settings = Storage.getSettings();
+  const settings = await Storage.getSettings();
   if (!settings.apiKey) return [];
 
   const openai = new OpenAI({
@@ -29,7 +29,7 @@ export async function generateDrills(
     dangerouslyAllowBrowser: true 
   });
 
-  const userData = Storage.getUserData();
+  const userData = await Storage.getUserData();
 
   let duplicationPreventionPrompt = '';
   if (settings.duplicatePreventionMode === 'history' && history.length > 0) {
@@ -102,7 +102,7 @@ export async function chatWithTutor(
   messages: ChatMessage[],
   currentQuestion: DrillQuestion
 ): Promise<string | null> {
-  const settings = Storage.getSettings();
+  const settings = await Storage.getSettings();
   if (!settings.apiKey) return null;
 
   const openai = new OpenAI({

@@ -3,11 +3,13 @@ import { Storage, type CustomDrillSet } from '../lib/storage';
 import { generateDrills, type DrillQuestion } from '../lib/ai';
 import { Loader2, Plus, Edit3, Trash2, Save, Play, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function CustomDrillPage() {
   const [activeTab, setActiveTab] = useState<'list' | 'create' | 'edit'>('list');
   const [savedSets, setSavedSets] = useState<CustomDrillSet[]>([]);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Create Form State
   const [subjectType, setSubjectType] = useState('英語');
@@ -25,12 +27,19 @@ export default function CustomDrillPage() {
   const [setTitle, setSetTitle] = useState('');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
+  const [isPublic, setIsPublic] = useState(false);
+
   useEffect(() => {
     loadSavedSets();
   }, []);
 
-  const loadSavedSets = () => {
-    setSavedSets(Storage.getCustomDrillSets());
+  const loadSavedSets = async () => {
+    try {
+      const sets = await Storage.getCustomDrillSets();
+      setSavedSets(sets);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleGenerate = async () => {
@@ -74,25 +83,31 @@ export default function CustomDrillPage() {
     }
   };
 
-  const handleSaveSet = () => {
+  const handleSaveSet = async () => {
     if (!setTitle) return alert('タイトルを入力してください');
     if (generatedQuestions.length === 0) return alert('問題がありません');
     
     const newSet: CustomDrillSet = {
-      id: editingSetId || Date.now().toString(),
+      id: editingSetId || crypto.randomUUID(),
       title: setTitle,
       subject: actualSubject,
       topic,
       createdAt: editingSetId ? savedSets.find(s => s.id === editingSetId)?.createdAt || Date.now() : Date.now(),
-      questions: generatedQuestions
+      questions: generatedQuestions,
+      is_public: isPublic
     };
-    Storage.saveCustomDrillSet(newSet);
-    loadSavedSets();
-    setActiveTab('list');
-    setEditingSetId(null);
-    setGeneratedQuestions([]);
-    setTopic('');
-    setInstructions('');
+    try {
+      await Storage.saveCustomDrillSet(newSet);
+      await loadSavedSets();
+      setActiveTab('list');
+      setEditingSetId(null);
+      setGeneratedQuestions([]);
+      setTopic('');
+      setInstructions('');
+      setIsPublic(false);
+    } catch (e) {
+      alert('保存に失敗しました');
+    }
   };
 
   const handleEdit = (set: CustomDrillSet) => {
@@ -108,14 +123,19 @@ export default function CustomDrillPage() {
     setTopic(set.topic);
     setSetTitle(set.title);
     setGeneratedQuestions(set.questions);
+    setIsPublic(set.is_public || false);
     setCurrentQuestionIndex(0);
     setActiveTab('edit');
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('本当に削除しますか？')) {
-      Storage.deleteCustomDrillSet(id);
-      loadSavedSets();
+      try {
+        await Storage.deleteCustomDrillSet(id);
+        await loadSavedSets();
+      } catch (e) {
+        alert('削除に失敗しました');
+      }
     }
   };
 
@@ -168,19 +188,21 @@ export default function CustomDrillPage() {
         >
           保存済みセット
         </button>
-        <button 
-          className={`btn ${activeTab === 'create' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => {
-            setActiveTab('create');
-            setEditingSetId(null);
-            setGeneratedQuestions([]);
-            setTopic('');
-            setSetTitle('');
-          }}
-          style={{ flex: 1 }}
-        >
-          <Plus size={18} /> 新しく作る
-        </button>
+        {user?.role === 'admin' && (
+          <button 
+            className={`btn ${activeTab === 'create' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => {
+              setActiveTab('create');
+              setEditingSetId(null);
+              setGeneratedQuestions([]);
+              setTopic('');
+              setSetTitle('');
+            }}
+            style={{ flex: 1 }}
+          >
+            <Plus size={18} /> 新しく作る
+          </button>
+        )}
       </div>
 
       {activeTab === 'list' && (
@@ -202,14 +224,16 @@ export default function CustomDrillPage() {
                     <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem' }}>{set.title}</h3>
                     <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>作成日: {new Date(set.createdAt).toLocaleDateString()}</p>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.25rem' }}>
-                    <button className="btn" style={{ background: 'transparent', color: 'var(--primary)', padding: '0.5rem' }} onClick={() => handleEdit(set)} title="編集">
-                      <Edit3 size={18} />
-                    </button>
-                    <button className="btn" style={{ background: 'transparent', color: '#ef4444', padding: '0.5rem' }} onClick={() => handleDelete(set.id)} title="削除">
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
+                  {user?.role === 'admin' && (
+                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                      <button className="btn" style={{ background: 'transparent', color: 'var(--primary)', padding: '0.5rem' }} onClick={() => handleEdit(set)} title="編集">
+                        <Edit3 size={18} />
+                      </button>
+                      <button className="btn" style={{ background: 'transparent', color: '#ef4444', padding: '0.5rem' }} onClick={() => handleDelete(set.id)} title="削除">
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button 
@@ -325,6 +349,20 @@ export default function CustomDrillPage() {
                 onChange={e => setSetTitle(e.target.value)}
               />
             </div>
+            
+            <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <input 
+                type="checkbox" 
+                id="isPublic"
+                checked={isPublic}
+                onChange={e => setIsPublic(e.target.checked)}
+                style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }}
+              />
+              <label htmlFor="isPublic" style={{ fontSize: '0.9rem', cursor: 'pointer' }}>
+                他のユーザーに公開する
+              </label>
+            </div>
+            
             <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleSaveSet}>
               <Save size={18} style={{ marginRight: '0.5rem' }} /> この問題セットを保存する
             </button>

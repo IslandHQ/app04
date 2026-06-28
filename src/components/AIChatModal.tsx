@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, Loader2 } from 'lucide-react';
 import { chatWithTutor, type ChatMessage, type DrillQuestion } from '../lib/ai';
+import { Storage } from '../lib/storage';
 
 interface AIChatModalProps {
   currentQuestion: DrillQuestion;
@@ -41,7 +42,11 @@ export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
     const reply = await chatWithTutor(newMessages, currentQuestion);
     
     if (reply) {
-      setMessages([...newMessages, { role: 'assistant', content: reply }]);
+      const updatedMessages = [...newMessages, { role: 'assistant' as const, content: reply }];
+      setMessages(updatedMessages);
+      
+      // バックグラウンドでチャット履歴を保存
+      Storage.saveChatLog(currentQuestion.subject, currentQuestion.topic, updatedMessages).catch(console.error);
     } else {
       setMessages([...newMessages, { role: 'assistant', content: 'エラーが発生しました。設定画面でAPIキーを確認してください。' }]);
     }

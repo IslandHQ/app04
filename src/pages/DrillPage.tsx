@@ -40,15 +40,19 @@ export default function DrillPage() {
       if (queueRef.current.length > 0 || isAnswered || question) return; // 既にロード済みなら何もしない
       isFetchingRef.current = true;
       
-      const customSets = Storage.getCustomDrillSets();
-      const targetSet = customSets.find(s => s.id === setIdParam);
-      
-      if (targetSet && targetSet.questions.length > 0) {
-        queueRef.current = [...targetSet.questions];
-        setQuestionQueue([...queueRef.current]);
-      } else {
-        alert('指定された問題セットが見つかりません。');
-        navigate('/custom');
+      try {
+        const customSets = await Storage.getCustomDrillSets();
+        const targetSet = customSets.find(s => s.id === setIdParam);
+        
+        if (targetSet && targetSet.questions.length > 0) {
+          queueRef.current = [...targetSet.questions];
+          setQuestionQueue([...queueRef.current]);
+        } else {
+          alert('指定された問題セットが見つかりません。');
+          navigate('/custom');
+        }
+      } catch(err) {
+        console.error(err);
       }
       
       isFetchingRef.current = false;
@@ -67,7 +71,7 @@ export default function DrillPage() {
       if (subjectParam === '国語') topic = "漢字の読み書きや四字熟語、ことわざ";
     }
 
-    const settings = Storage.getSettings();
+    const settings = await Storage.getSettings();
 
     // ストックが3問になるまで1問ずつ補充
     while (true) {
@@ -172,8 +176,12 @@ export default function DrillPage() {
     // 学習記録の保存
     const timeSpentMs = Date.now() - startTimeRef.current;
     const timeSpentMin = Math.max(1, Math.round(timeSpentMs / 60000));
-    const studyRecordResult = Storage.addStudyResult(subjectParam, question.topic, timeSpentMin, isCorrectAnswer);
-    setExpResult(studyRecordResult);
+    try {
+      const studyRecordResult = await Storage.addStudyResult(subjectParam, question.topic, timeSpentMin, isCorrectAnswer);
+      setExpResult(studyRecordResult);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleGetHint = () => {

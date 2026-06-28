@@ -9,12 +9,24 @@ export default function HomePage() {
   const [customSets, setCustomSets] = useState<CustomDrillSet[]>([]);
 
   useEffect(() => {
-    setUserData(Storage.getUserData());
-    setHasApiKey(!!Storage.getSettings().apiKey);
-    setCustomSets(Storage.getCustomDrillSets());
+    async function load() {
+      try {
+        const user = await Storage.getUserData();
+        setUserData(user);
+        const settings = await Storage.getSettings();
+        setHasApiKey(!!settings.apiKey);
+        const drills = await Storage.getCustomDrillSets();
+        setCustomSets(drills);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    load();
   }, []);
 
-  if (!userData) return null;
+  if (!userData) {
+    return <div className="animate-fade-in" style={{ padding: '2rem', textAlign: 'center' }}>読み込み中...</div>;
+  }
 
   const expNeeded = userData.level * 50;
   const expPercent = Math.min(100, Math.round((userData.exp / expNeeded) * 100));
