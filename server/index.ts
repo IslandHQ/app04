@@ -50,20 +50,20 @@ app.post('/api/auth/signup', async (c) => {
     return c.json({ error: 'Missing required fields' }, 400);
   }
 
-  const existingUser = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
-  if (existingUser) {
-    return c.json({ error: 'Email already exists' }, 400);
-  }
-
-  const password_hash = await hashPassword(password);
-  const id = crypto.randomUUID();
-  const created_at = new Date().toISOString();
-  
-  const userCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users').first() as any;
-  const userCount = userCountResult?.count || 0;
-  const role = userCount === 0 ? 'admin' : 'user';
-
   try {
+    const existingUser = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
+    if (existingUser) {
+      return c.json({ error: 'Email already exists' }, 400);
+    }
+
+    const password_hash = await hashPassword(password);
+    const id = crypto.randomUUID();
+    const created_at = new Date().toISOString();
+    
+    const userCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users').first() as any;
+    const userCount = userCountResult?.count || 0;
+    const role = userCount === 0 ? 'admin' : 'user';
+
     await c.env.DB.prepare(
       'INSERT INTO users (id, email, password_hash, name, grade, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ).bind(id, email, password_hash, name, grade || '中1', role, created_at).run();
@@ -75,9 +75,9 @@ app.post('/api/auth/signup', async (c) => {
     });
 
     return c.json({ message: 'User created successfully', user: { id, email, name, grade: grade || '中1', role } });
-  } catch (err) {
-    console.error(err);
-    return c.json({ error: 'Failed to create user' }, 500);
+  } catch (err: any) {
+    console.error('Signup error:', err);
+    return c.json({ error: 'Failed to create user', details: err.message }, 500);
   }
 });
 
@@ -242,6 +242,7 @@ app.get('/api/custom_drills', async (c) => {
   const drills = result.results as any[];
   const formatted = drills.map(d => ({
     ...d,
+    createdAt: d.created_at ? new Date(d.created_at).getTime() : Date.now(),
     questions: JSON.parse(d.questions),
     is_public: d.is_public === 1
   }));
@@ -252,7 +253,7 @@ app.post('/api/custom_drills', async (c) => {
   const user = c.get('user');
   if (user.role !== 'admin') return c.json({ error: 'Forbidden: Admins only' }, 403);
   const body = await c.req.json();
-  const { id, title, subject, topic, questions, is_public } = body;
+  const { id, title, subject, topic, questions, is_public, createdAt } = body;
   
   const existing = await c.env.DB.prepare('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').bind(id).first() as any;
   if (existing) {
@@ -261,9 +262,10 @@ app.post('/api/custom_drills', async (c) => {
       'UPDATE custom_drill_sets SET title = ?, subject = ?, topic = ?, questions = ?, is_public = ? WHERE id = ?'
     ).bind(title, subject, topic, JSON.stringify(questions), is_public ? 1 : 0, id).run();
   } else {
+    const createdAtIso = createdAt ? new Date(createdAt).toISOString() : new Date().toISOString();
     await c.env.DB.prepare(
       'INSERT INTO custom_drill_sets (id, user_id, title, subject, topic, questions, is_public, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(id, user.id, title, subject, topic, JSON.stringify(questions), is_public ? 1 : 0, new Date().toISOString()).run();
+    ).bind(id, user.id, title, subject, topic, JSON.stringify(questions), is_public ? 1 : 0, createdAtIso).run();
   }
   return c.json({ message: 'Saved' });
 });

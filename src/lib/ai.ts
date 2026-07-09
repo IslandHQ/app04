@@ -93,11 +93,6 @@ ${duplicationPreventionPrompt}
   return [];
 }
 
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
 export async function chatWithTutor(
   messages: ChatMessage[],
   currentQuestion: DrillQuestion
@@ -161,7 +156,7 @@ export async function generateUserSummary(
   // データをAI向けに整形
   const recentRecords = records.slice(-7); // 最近7日分
   const recordsText = recentRecords.map(r => 
-    `${r.name || r.date}: 学習${r.time || r.studyMinutes}分, ${r.totalQuestions}問中${r.correctAnswers}問正解`
+    `${r.date}: 学習${r.studyMinutes}分, ${r.totalQuestions}問中${r.correctAnswers}問正解`
   ).join('\n');
 
   const recentChats = chatLogs.slice(0, 5); // 直近5件のチャット

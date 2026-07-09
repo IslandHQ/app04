@@ -32,7 +32,13 @@ export default function DashboardPage() {
     setIsGeneratingSummary(true);
     setSummaryText(null);
     try {
-      const text = await generateUserSummary(userData, records, adminChatLogs);
+      const mappedRecords = records.map(r => ({
+        date: r.name,
+        studyMinutes: r.time,
+        totalQuestions: r.totalQuestions,
+        correctAnswers: r.correctAnswers
+      }));
+      const text = await generateUserSummary(userData, mappedRecords, adminChatLogs);
       setSummaryText(text);
     } catch (e) {
       console.error(e);

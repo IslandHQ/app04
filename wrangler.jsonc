@@ -16,7 +16,7 @@
   },
   "build": {
     "command": "bun run build",
-    "watch_dir": "src"
+    "watch_dir": ["src", "server"]
   },
   "d1_databases": [
     {

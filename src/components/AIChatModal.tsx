@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, Loader2 } from 'lucide-react';
-import { chatWithTutor, type ChatMessage, type DrillQuestion } from '../lib/ai';
-import { Storage } from '../lib/storage';
+import { chatWithTutor, type DrillQuestion } from '../lib/ai';
+import { Storage, type ChatMessage } from '../lib/storage';
 
 interface AIChatModalProps {
   currentQuestion: DrillQuestion;

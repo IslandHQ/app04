@@ -125,7 +125,7 @@ export default function DrillPage() {
           const errorQuestion: DrillQuestion = {
             subject: subjectParam,
             topic: "通信エラー",
-            questionText: `APIへの接続に失敗しました。\n\n詳細: ${error.message}\n\n・設定画面のエンドポイントURLが正しいか確認してください。`,
+            questionText: `APIへの接続に失敗しました。\n\n詳細: ${error instanceof Error ? error.message : String(error)}\n\n・設定画面のエンドポイントURLが正しいか確認してください。`,
             choices: ["設定を確認する", "やり直す", "ヘルプを見る", "閉じる"],
             correctAnswer: "",
             explanation: "設定画面からURLとAPIキーを見直してください。",
