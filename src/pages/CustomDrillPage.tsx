@@ -230,7 +230,7 @@ export default function CustomDrillPage() {
                       <span className="badge" style={{ background: '#e2e8f0', color: 'var(--text)', fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}>{set.questions.length}問</span>
                     </div>
                     <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem' }}>{set.title}</h3>
-                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>作成日: {new Date(set.createdAt).toLocaleDateString()}</p>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>作成日: {set.createdAt ? new Date(set.createdAt).toLocaleDateString() : new Date().toLocaleDateString()}</p>
                   </div>
                   {user?.role === 'admin' && (
                     <div style={{ display: 'flex', gap: '0.25rem' }}>

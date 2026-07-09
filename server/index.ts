@@ -240,12 +240,23 @@ app.get('/api/custom_drills', async (c) => {
   const user = c.get('user');
   const result = await c.env.DB.prepare('SELECT * FROM custom_drill_sets WHERE user_id = ? OR is_public = 1').bind(user.id).all();
   const drills = result.results as any[];
-  const formatted = drills.map(d => ({
-    ...d,
-    createdAt: d.created_at ? new Date(d.created_at).getTime() : Date.now(),
-    questions: JSON.parse(d.questions),
-    is_public: d.is_public === 1
-  }));
+  const formatted = drills.map(d => {
+    let parsedCreatedAt = Date.now();
+    if (d.created_at) {
+      const t = new Date(d.created_at).getTime();
+      if (!isNaN(t)) {
+        parsedCreatedAt = t;
+      } else if (!isNaN(Number(d.created_at))) {
+        parsedCreatedAt = Number(d.created_at);
+      }
+    }
+    return {
+      ...d,
+      createdAt: parsedCreatedAt,
+      questions: JSON.parse(d.questions),
+      is_public: d.is_public === 1
+    };
+  });
   return c.json(formatted);
 });
 
@@ -262,7 +273,15 @@ app.post('/api/custom_drills', async (c) => {
       'UPDATE custom_drill_sets SET title = ?, subject = ?, topic = ?, questions = ?, is_public = ? WHERE id = ?'
     ).bind(title, subject, topic, JSON.stringify(questions), is_public ? 1 : 0, id).run();
   } else {
-    const createdAtIso = createdAt ? new Date(createdAt).toISOString() : new Date().toISOString();
+    let createdAtIso = new Date().toISOString();
+    if (createdAt) {
+      const t = new Date(createdAt).getTime();
+      if (!isNaN(t)) {
+        createdAtIso = new Date(t).toISOString();
+      } else if (!isNaN(Number(createdAt))) {
+        createdAtIso = new Date(Number(createdAt)).toISOString();
+      }
+    }
     await c.env.DB.prepare(
       'INSERT INTO custom_drill_sets (id, user_id, title, subject, topic, questions, is_public, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     ).bind(id, user.id, title, subject, topic, JSON.stringify(questions), is_public ? 1 : 0, createdAtIso).run();
