@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Clock, CheckSquare, Target, AlertTriangle, Users, ChevronLeft, MessageSquare, Bot, User as UserIcon, Sparkles } from 'lucide-react';
-import { Storage, type UserData } from '../lib/storage';
+import { Storage, type UserData, type AdminUser, type DailyRecord, type ChatLog, type ChatMessage } from '../lib/storage';
 import { generateUserSummary } from '../lib/ai';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -16,9 +16,9 @@ export default function DashboardPage() {
   const { user } = useAuth();
   
   // Admin state
-  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [adminChatLogs, setAdminChatLogs] = useState<any[]>([]);
+  const [adminChatLogs, setAdminChatLogs] = useState<ChatLog[]>([]);
   
   // Personal/Detailed state
   const [records, setRecords] = useState<ChartData[]>([]);
@@ -51,8 +51,8 @@ export default function DashboardPage() {
           return;
         }
 
-        let rawRecords: any[] = [];
-        let targetUser: any = null;
+        let rawRecords: DailyRecord[] = [];
+        let targetUser: UserData | null = null;
 
         if (user?.role === 'admin' && selectedUserId) {
           setSummaryText(null);
@@ -65,12 +65,12 @@ export default function DashboardPage() {
               grade: u.grade,
               name: u.name,
               streak: u.streak,
-              lastStudyDate: u.last_study_date,
+              lastStudyDate: u.last_study_date || '',
               level: u.level,
               exp: u.exp,
               topicStats: {},
               detailedStats: {}
-            };
+            } as UserData;
           }
         } else {
           rawRecords = await Storage.getDailyRecords();
@@ -100,6 +100,7 @@ export default function DashboardPage() {
       }
     }
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, selectedUserId]);
 
   // If Admin and NO user is selected, render the User List
@@ -332,7 +333,7 @@ export default function DashboardPage() {
                   </div>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'rgba(255,255,255,0.5)', padding: '1rem', borderRadius: '0.5rem' }}>
-                    {log.chat_history.map((msg: any, idx: number) => (
+                    {log.chat_history.map((msg: ChatMessage, idx: number) => (
                       <div key={idx} style={{ display: 'flex', gap: '0.75rem', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                         {msg.role === 'assistant' && (
                           <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

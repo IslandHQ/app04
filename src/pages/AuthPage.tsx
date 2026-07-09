@@ -34,8 +34,12 @@ export default function AuthPage() {
       }
 
       await checkAuth(); // ログイン状態の更新
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('エラーが発生しました');
+      }
     } finally {
       setIsLoading(false);
     }

@@ -118,7 +118,7 @@ export default function DrillPage() {
           }
           break;
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(`[AI生成] ${targetIndex}問目の補充に失敗:`, error);
 
         if (!question && queueRef.current.length === 0) {
@@ -147,21 +147,26 @@ export default function DrillPage() {
       initialized.current = true;
       fetchQuestions();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // キューから問題を取り出す
   useEffect(() => {
     if (!question && questionQueue.length > 0) {
       const nextQ = questionQueue[0];
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuestion(nextQ);
       queueRef.current = queueRef.current.slice(1);
+       
       setQuestionQueue([...queueRef.current]);
       startTimeRef.current = Date.now();
+       
       setIsLoading(false);
 
       // 取り出したので補充を開始
       fetchQuestions();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question, questionQueue]);
 
   const handleSubmit = async (selectedAnswer: string) => {
@@ -174,6 +179,7 @@ export default function DrillPage() {
     setFeedback(question.explanation);
     
     // 学習記録の保存
+    // eslint-disable-next-line react-hooks/purity
     const timeSpentMs = Date.now() - startTimeRef.current;
     const timeSpentMin = Math.max(1, Math.round(timeSpentMs / 60000));
     try {

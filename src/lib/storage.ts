@@ -1,3 +1,29 @@
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export interface ChatLog {
+  id: string;
+  user_id: string;
+  subject: string;
+  topic: string;
+  chat_history: ChatMessage[];
+  created_at: string;
+}
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  name: string;
+  role: string;
+  grade: string;
+  level: number;
+  exp: number;
+  streak: number;
+  last_study_date?: string;
+}
+
 export interface AISettings {
   endpoint: string;
   apiKey: string;
@@ -79,7 +105,7 @@ export const Storage = {
     const res = await fetch('/api/daily_records');
     if (!res.ok) return [];
     const data = await res.json();
-    return data.map((d: any) => ({
+    return data.map((d: { date: string; study_minutes: number; total_questions: number; correct_answers: number }) => ({
       date: d.date,
       studyMinutes: d.study_minutes,
       totalQuestions: d.total_questions,
@@ -115,7 +141,7 @@ export const Storage = {
     return res.json();
   },
   
-  async saveChatLog(subject: string, topic: string, chatHistory: any[]): Promise<void> {
+  async saveChatLog(subject: string, topic: string, chatHistory: ChatMessage[]): Promise<void> {
     await fetch('/api/chat_logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -123,7 +149,7 @@ export const Storage = {
     });
   },
   
-  async getAdminUsers(): Promise<any[]> {
+  async getAdminUsers(): Promise<AdminUser[]> {
     const res = await fetch('/api/admin/users');
     if (!res.ok) throw new Error('Failed to fetch admin users');
     return res.json();
@@ -133,7 +159,7 @@ export const Storage = {
     const res = await fetch(`/api/admin/users/${userId}/records`);
     if (!res.ok) throw new Error('Failed to fetch admin user records');
     const records = await res.json();
-    return records.map((r: any) => ({
+    return records.map((r: { date: string; study_minutes: number; total_questions: number; correct_answers: number }) => ({
       date: r.date,
       studyMinutes: r.study_minutes,
       totalQuestions: r.total_questions,
@@ -141,7 +167,7 @@ export const Storage = {
     }));
   },
 
-  async getAdminUserChatLogs(userId: string): Promise<any[]> {
+  async getAdminUserChatLogs(userId: string): Promise<ChatLog[]> {
     const res = await fetch(`/api/admin/users/${userId}/chat_logs`);
     if (!res.ok) throw new Error('Failed to fetch admin chat logs');
     return res.json();

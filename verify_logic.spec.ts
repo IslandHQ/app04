@@ -35,7 +35,7 @@ test('verify weakness analysis and review button', async ({ page }) => {
     await route.fulfill({ json: [] });
   });
 
-  await page.goto('http://127.0.0.1:5173');
+  await page.goto('http://127.0.0.1:8787');
 
   // Check Home Page for Review Button
   await expect(page.locator('text=苦手発見！ 数学')).toBeVisible();

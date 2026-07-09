@@ -25,10 +25,12 @@ export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
   }, [messages, isOpen]);
 
   // If question changes, reset chat
-  useEffect(() => {
+  const [prevQuestion, setPrevQuestion] = useState(currentQuestion);
+  if (currentQuestion !== prevQuestion) {
     setMessages([]);
     setIsOpen(false);
-  }, [currentQuestion]);
+    setPrevQuestion(currentQuestion);
+  }
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;

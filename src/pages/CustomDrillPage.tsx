@@ -33,14 +33,14 @@ export default function CustomDrillPage() {
     loadSavedSets();
   }, []);
 
-  const loadSavedSets = async () => {
+  async function loadSavedSets() {
     try {
       const sets = await Storage.getCustomDrillSets();
       setSavedSets(sets);
     } catch (e) {
       console.error(e);
     }
-  };
+  }
 
   const handleGenerate = async () => {
     if (subjectType === 'custom' && !customSubject) return alert('カスタム教科名を入力してください');
@@ -57,8 +57,12 @@ export default function CustomDrillPage() {
       } else {
         alert('問題の生成に失敗しました。');
       }
-    } catch (err: any) {
-      alert(`エラー: ${err.message}`);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        alert(`エラー: ${err.message}`);
+      } else {
+        alert('エラーが発生しました');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -76,8 +80,12 @@ export default function CustomDrillPage() {
       } else {
         alert('問題の生成に失敗しました。');
       }
-    } catch (err: any) {
-      alert(`エラー: ${err.message}`);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        alert(`エラー: ${err.message}`);
+      } else {
+        alert('エラーが発生しました');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -105,7 +113,7 @@ export default function CustomDrillPage() {
       setTopic('');
       setInstructions('');
       setIsPublic(false);
-    } catch (e) {
+    } catch {
       alert('保存に失敗しました');
     }
   };
@@ -133,7 +141,7 @@ export default function CustomDrillPage() {
       try {
         await Storage.deleteCustomDrillSet(id);
         await loadSavedSets();
-      } catch (e) {
+      } catch {
         alert('削除に失敗しました');
       }
     }
@@ -154,7 +162,7 @@ export default function CustomDrillPage() {
     }
   };
 
-  const updateCurrentQuestion = (field: keyof DrillQuestion, value: any) => {
+  const updateCurrentQuestion = (field: keyof DrillQuestion, value: string | string[] | number | boolean) => {
     const newQs = [...generatedQuestions];
     newQs[currentQuestionIndex] = { ...newQs[currentQuestionIndex], [field]: value };
     setGeneratedQuestions(newQs);

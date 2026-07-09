@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { Storage } from './storage';
+import { Storage, type UserData, type DailyRecord, type ChatLog, type ChatMessage } from './storage';
 
 export interface DrillQuestion {
   subject: string;
@@ -145,9 +145,9 @@ export async function chatWithTutor(
 }
 
 export async function generateUserSummary(
-  userData: any,
-  records: any[],
-  chatLogs: any[]
+  userData: UserData,
+  records: DailyRecord[],
+  chatLogs: ChatLog[]
 ): Promise<string> {
   const settings = await Storage.getSettings();
   if (!settings.apiKey) return 'AIの設定（APIキー等）が完了していません。設定画面からAPIキーを登録してください。';
@@ -166,7 +166,7 @@ export async function generateUserSummary(
 
   const recentChats = chatLogs.slice(0, 5); // 直近5件のチャット
   const chatsText = recentChats.map(log => {
-    const interaction = log.chat_history.map((msg: any) => `${msg.role === 'user' ? '生徒' : 'AI'}: ${msg.content}`).join('\n');
+    const interaction = log.chat_history.map((msg: ChatMessage) => `${msg.role === 'user' ? '生徒' : 'AI'}: ${msg.content}`).join('\n');
     return `【${log.subject} - ${log.topic}】\n${interaction}`;
   }).join('\n\n');
 
