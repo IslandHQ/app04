@@ -22,7 +22,8 @@
     {
       "binding": "DB",
       "database_name": "app04-db",
-      "database_id": "local"
+      "database_id": "6a5c9fdb-5749-4599-8174-5d8f4e819f0b",
+      "preview_database_id": "35601d76-004b-48ae-bbd7-5e511fbc1002"
     }
   ]
 }
