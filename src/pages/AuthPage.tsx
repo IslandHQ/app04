@@ -46,119 +46,72 @@ export default function AuthPage() {
   };
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '100vh',
-      backgroundColor: 'var(--bg-gradient-start)',
-      padding: '1rem'
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: '400px',
-        backgroundColor: 'var(--card-bg, #ffffff)',
-        borderRadius: 'var(--radius, 12px)',
-        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-        padding: '2rem'
-      }}>
-        <h1 style={{
-          fontSize: '1.5rem',
-          fontWeight: 'bold',
-          textAlign: 'center',
-          color: 'var(--primary, #4f46e5)',
-          marginBottom: '1.5rem'
-        }}>
+    <div className="app-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+      <div className="glass-panel animate-fade-in" style={{ width: '100%', padding: '2rem' }}>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 800, textAlign: 'center', color: 'var(--primary)', marginBottom: '1.5rem' }}>
           {isLogin ? 'ログイン' : '新規登録'}
         </h1>
         
         {error && (
-          <div style={{
-            backgroundColor: '#fee2e2',
-            color: '#b91c1c',
-            padding: '0.75rem',
-            borderRadius: '4px',
-            marginBottom: '1rem',
-            fontSize: '0.875rem'
-          }}>
+          <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '0.75rem', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
             {error}
           </div>
         )}
         
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {!isLogin && (
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }}>なまえ</label>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.5rem' }}>ニックネーム</label>
               <input
                 type="text"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  boxSizing: 'border-box'
-                }}
+                className="input-field"
+                placeholder="たろう"
               />
             </div>
           )}
           
           <div>
-            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }}>メールアドレス</label>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.5rem' }}>メールアドレス</label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                boxSizing: 'border-box'
-              }}
+              className="input-field"
+              placeholder="your@email.com"
             />
           </div>
           
           <div>
-            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }}>パスワード</label>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.5rem' }}>パスワード</label>
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                boxSizing: 'border-box'
-              }}
+              className="input-field"
+              placeholder="••••••••"
             />
           </div>
           
           <button
             type="submit"
             disabled={isLoading}
-            className="action-btn"
-            style={{
-              width: '100%',
-              marginTop: '0.5rem',
-              opacity: isLoading ? 0.5 : 1
-            }}
+            className="btn btn-primary"
+            style={{ width: '100%', marginTop: '0.5rem', opacity: isLoading ? 0.7 : 1 }}
           >
             {isLoading ? '処理中...' : (isLogin ? 'ログイン' : '登録する')}
           </button>
         </form>
         
-        <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.875rem', color: '#4b5563' }}>
+        <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
           {isLogin ? (
-            <p>アカウントをお持ちでないですか？ <button onClick={() => setIsLogin(false)} style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>新規登録</button></p>
+            <p>アカウントをお持ちでないですか？ <button onClick={() => setIsLogin(false)} style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}>新規登録</button></p>
           ) : (
-            <p>すでにアカウントをお持ちですか？ <button onClick={() => setIsLogin(true)} style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>ログイン</button></p>
+            <p>すでにアカウントをお持ちですか？ <button onClick={() => setIsLogin(true)} style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}>ログイン</button></p>
           )}
         </div>
       </div>

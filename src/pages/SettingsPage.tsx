@@ -75,8 +75,8 @@ export default function SettingsPage() {
           </h1>
           <p style={{ color: 'var(--text-muted)' }}>アカウントとシステムの設定</p>
         </div>
-        <button onClick={logout} className="action-btn" style={{ background: '#fee2e2', color: '#ef4444' }}>
-          <LogOut size={20} /> ログアウト
+        <button onClick={logout} className="btn btn-danger" style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+          <LogOut size={16} /> ログアウト
         </button>
       </header>
 
