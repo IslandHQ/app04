@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "bun run build && wrangler dev",
-    "deploy": "bun run build && wrangler deploy"
+    "deploy": "bun run build && wrangler deploy",
+    "db:init:prod": "wrangler d1 execute app04-db --remote --file=./schema.sql",
+    "db:init:preview": "wrangler d1 execute app04-db-preview --remote --file=./schema.sql"
   },
   "dependencies": {
     "hono": "^4.12.27",
