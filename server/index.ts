@@ -294,9 +294,16 @@ app.delete('/api/custom_drills/:id', async (c) => {
   if (user.role !== 'admin') return c.json({ error: 'Forbidden: Admins only' }, 403);
   const id = c.req.param('id');
   const existing = await c.env.DB.prepare('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').bind(id).first() as any;
-  if (existing && existing.user_id === user.id) {
-    await c.env.DB.prepare('DELETE FROM custom_drill_sets WHERE id = ?').bind(id).run();
+
+  if (!existing) {
+    return c.json({ error: 'Not found' }, 404);
   }
+
+  if (existing.user_id !== user.id) {
+    return c.json({ error: 'Forbidden: You can only delete your own drills' }, 403);
+  }
+
+  await c.env.DB.prepare('DELETE FROM custom_drill_sets WHERE id = ?').bind(id).run();
   return c.json({ message: 'Deleted' });
 });
 
