@@ -214,10 +214,10 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.15rem;
   color: var(--text-muted);
   text-decoration: none;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
   transition: color var(--transition-fast);
 }
@@ -229,6 +229,10 @@ h1, h2, h3, h4, h5, h6 {
 .nav-item.active svg {
   stroke: var(--primary);
   fill: rgba(79, 70, 229, 0.1);
+}
+
+.nav-item svg {
+  stroke-width: 2;
 }
 
 .page-content {

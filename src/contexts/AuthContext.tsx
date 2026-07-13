@@ -5,7 +5,6 @@ export interface User {
   email: string;
   name: string;
   role: 'admin' | 'user';
-  grade?: string;
   level?: number;
   exp?: number;
   streak?: number;

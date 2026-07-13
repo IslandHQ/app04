@@ -68,7 +68,6 @@ export default function DashboardPage() {
           const u = adminUsers.find(x => x.id === selectedUserId);
           if (u) {
             targetUser = {
-              grade: u.grade,
               name: u.name,
               streak: u.streak,
               lastStudyDate: u.last_study_date || '',
@@ -133,7 +132,7 @@ export default function DashboardPage() {
                       {u.name} {u.role === 'admin' && <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', background: '#f59e0b', color: 'white', borderRadius: '0.5rem' }}>Admin</span>}
                     </h3>
                     <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      {u.grade} | Lv.{u.level} | 連続 {u.streak}日 | 最終学習: {u.last_study_date || '未学習'}
+                      Lv.{u.level} | 連続 {u.streak}日 | 最終学習: {u.last_study_date || '未学習'}
                     </p>
                   </div>
                 </div>

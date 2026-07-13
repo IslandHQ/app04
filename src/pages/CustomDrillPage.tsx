@@ -1,15 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Storage, type CustomDrillSet } from '../lib/storage';
 import { generateDrills, type DrillQuestion } from '../lib/ai';
-import { Loader2, Plus, Edit3, Trash2, Save, Play, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { Loader2, Plus, Edit3, Trash2, Save, Play, ChevronLeft, ChevronRight, Check, Globe } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 
 export default function CustomDrillPage() {
   const [activeTab, setActiveTab] = useState<'list' | 'create' | 'edit'>('list');
   const [savedSets, setSavedSets] = useState<CustomDrillSet[]>([]);
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   // Create Form State
   const [subjectType, setSubjectType] = useState('英語');
@@ -28,6 +26,8 @@ export default function CustomDrillPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
   const [isPublic, setIsPublic] = useState(false);
+  const [description, setDescription] = useState('');
+  const [tagsInput, setTagsInput] = useState('');
 
   useEffect(() => {
     loadSavedSets();
@@ -95,6 +95,8 @@ export default function CustomDrillPage() {
     if (!setTitle) return alert('タイトルを入力してください');
     if (generatedQuestions.length === 0) return alert('問題がありません');
     
+    const tags = tagsInput.split(',').map(t => t.trim()).filter(Boolean);
+    
     const newSet: CustomDrillSet = {
       id: editingSetId || crypto.randomUUID(),
       title: setTitle,
@@ -102,6 +104,8 @@ export default function CustomDrillPage() {
       topic,
       createdAt: editingSetId ? savedSets.find(s => s.id === editingSetId)?.createdAt || Date.now() : Date.now(),
       questions: generatedQuestions,
+      description,
+      tags,
       is_public: isPublic
     };
     try {
@@ -113,6 +117,8 @@ export default function CustomDrillPage() {
       setTopic('');
       setInstructions('');
       setIsPublic(false);
+      setDescription('');
+      setTagsInput('');
     } catch {
       alert('保存に失敗しました');
     }
@@ -132,6 +138,8 @@ export default function CustomDrillPage() {
     setSetTitle(set.title);
     setGeneratedQuestions(set.questions);
     setIsPublic(set.is_public || false);
+    setDescription(set.description || '');
+    setTagsInput((set.tags || []).join(', '));
     setCurrentQuestionIndex(0);
     setActiveTab('edit');
   };
@@ -173,9 +181,6 @@ export default function CustomDrillPage() {
     const newChoices = [...newQs[currentQuestionIndex].choices];
     newChoices[index] = value;
     newQs[currentQuestionIndex].choices = newChoices;
-    
-    // If the correct answer matches the old choice, update it too?
-    // Kept simple for now. User must ensure correctAnswer matches one of the choices.
     setGeneratedQuestions(newQs);
   };
 
@@ -183,9 +188,9 @@ export default function CustomDrillPage() {
     <div className="animate-fade-in" style={{ paddingBottom: '2rem' }}>
       <header style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.5rem' }}>
-          オリジナル問題をつくる
+          オリジナル問題
         </h1>
-        <p style={{ color: 'var(--text-muted)' }}>AIを使って自分専用のドリルセットを作成・管理</p>
+        <p style={{ color: 'var(--text-muted)' }}>AIで問題を作成・管理・共有</p>
       </header>
 
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -194,23 +199,24 @@ export default function CustomDrillPage() {
           onClick={() => setActiveTab('list')}
           style={{ flex: 1 }}
         >
-          保存済みセット
+          マイセット
         </button>
-        {user?.role === 'admin' && (
-          <button 
-            className={`btn ${activeTab === 'create' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => {
-              setActiveTab('create');
-              setEditingSetId(null);
-              setGeneratedQuestions([]);
-              setTopic('');
-              setSetTitle('');
-            }}
-            style={{ flex: 1 }}
-          >
-            <Plus size={18} /> 新しく作る
-          </button>
-        )}
+        <button 
+          className={`btn ${activeTab === 'create' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => {
+            setActiveTab('create');
+            setEditingSetId(null);
+            setGeneratedQuestions([]);
+            setTopic('');
+            setSetTitle('');
+            setDescription('');
+            setTagsInput('');
+            setIsPublic(false);
+          }}
+          style={{ flex: 1 }}
+        >
+          <Plus size={18} /> 新しく作る
+        </button>
       </div>
 
       {activeTab === 'list' && (
@@ -218,30 +224,36 @@ export default function CustomDrillPage() {
           {savedSets.length === 0 ? (
             <div className="glass-panel" style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               <Edit3 size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-              <p>まだ保存された問題セットがありません。<br/>「新しく作る」からAIに問題を作ってもらいましょう！</p>
+              <p>まだ問題セットがありません。<br/>「新しく作る」からAIに問題を作ってもらいましょう！</p>
             </div>
           ) : (
             savedSets.map(set => (
               <div key={set.id} className="glass-panel" style={{ padding: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
                   <div>
-                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
                       <span className="badge badge-primary" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}>{set.subject}</span>
                       <span className="badge" style={{ background: '#e2e8f0', color: 'var(--text)', fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}>{set.questions.length}問</span>
+                      {set.is_public && (
+                        <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--secondary)', fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}>
+                          <Globe size={10} style={{ display: 'inline', marginRight: '0.2rem' }} />公開中
+                        </span>
+                      )}
                     </div>
                     <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem' }}>{set.title}</h3>
+                    {set.description && (
+                      <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{set.description}</p>
+                    )}
                     <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>作成日: {set.createdAt ? new Date(set.createdAt).toLocaleDateString() : new Date().toLocaleDateString()}</p>
                   </div>
-                  {user?.role === 'admin' && (
-                    <div style={{ display: 'flex', gap: '0.25rem' }}>
-                      <button className="btn" style={{ background: 'transparent', color: 'var(--primary)', padding: '0.5rem' }} onClick={() => handleEdit(set)} title="編集">
-                        <Edit3 size={18} />
-                      </button>
-                      <button className="btn" style={{ background: 'transparent', color: '#ef4444', padding: '0.5rem' }} onClick={() => handleDelete(set.id)} title="削除">
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', gap: '0.25rem' }}>
+                    <button className="btn" style={{ background: 'transparent', color: 'var(--primary)', padding: '0.5rem' }} onClick={() => handleEdit(set)} title="編集">
+                      <Edit3 size={18} />
+                    </button>
+                    <button className="btn" style={{ background: 'transparent', color: '#ef4444', padding: '0.5rem' }} onClick={() => handleDelete(set.id)} title="削除">
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button 
@@ -298,7 +310,7 @@ export default function CustomDrillPage() {
             <input 
               type="text" 
               className="input-field" 
-              placeholder="例: 中1 英語 疑問詞" 
+              placeholder="例: 英語 疑問詞" 
               value={topic}
               onChange={e => setTopic(e.target.value)}
               disabled={isGenerating}
@@ -357,6 +369,28 @@ export default function CustomDrillPage() {
                 onChange={e => setSetTitle(e.target.value)}
               />
             </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>説明（オプション）</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="この問題セットの説明を入力"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>タグ（カンマ区切り、オプション）</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="例: 英単語, 初級, 毎日"
+                value={tagsInput}
+                onChange={e => setTagsInput(e.target.value)}
+              />
+            </div>
             
             <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <input 
@@ -366,8 +400,8 @@ export default function CustomDrillPage() {
                 onChange={e => setIsPublic(e.target.checked)}
                 style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }}
               />
-              <label htmlFor="isPublic" style={{ fontSize: '0.9rem', cursor: 'pointer' }}>
-                他のユーザーに公開する
+              <label htmlFor="isPublic" style={{ fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <Globe size={14} /> 他のユーザーに公開する（「探す」ページに表示されます）
               </label>
             </div>
             

@@ -41,8 +41,7 @@ export default function DrillPage() {
       isFetchingRef.current = true;
       
       try {
-        const customSets = await Storage.getCustomDrillSets();
-        const targetSet = customSets.find(s => s.id === setIdParam);
+        const targetSet = await Storage.getCustomDrillSet(setIdParam);
         
         if (targetSet && targetSet.questions.length > 0) {
           queueRef.current = [...targetSet.questions];
