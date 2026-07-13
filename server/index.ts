@@ -44,7 +44,7 @@ app.get('/api/health', (c) => c.json({ status: 'ok' }));
 // --- Auth Routes ---
 app.post('/api/auth/signup', async (c) => {
   const body = await c.req.json();
-  const { email, password, name, grade } = body;
+  const { email, password, name } = body;
   
   if (!email || !password || !name) {
     return c.json({ error: 'Missing required fields' }, 400);
@@ -65,8 +65,8 @@ app.post('/api/auth/signup', async (c) => {
     const role = userCount === 0 ? 'admin' : 'user';
 
     await c.env.DB.prepare(
-      'INSERT INTO users (id, email, password_hash, name, grade, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(id, email, password_hash, name, grade || '中1', role, created_at).run();
+      'INSERT INTO users (id, email, password_hash, name, role, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(id, email, password_hash, name, role, created_at).run();
 
     const secret = c.env.JWT_SECRET || 'super_secret_key_for_dev_only';
     const token = await sign({ id, email, role, name }, secret);
@@ -74,7 +74,7 @@ app.post('/api/auth/signup', async (c) => {
       httpOnly: true, secure: c.env.NODE_ENV === 'production', sameSite: 'Strict', path: '/'
     });
 
-    return c.json({ message: 'User created successfully', user: { id, email, name, grade: grade || '中1', role } });
+    return c.json({ message: 'User created successfully', user: { id, email, name, role } });
   } catch (err: any) {
     console.error('Signup error:', err);
     return c.json({ error: 'Failed to create user', details: err.message }, 500);
@@ -110,7 +110,7 @@ app.post('/api/auth/logout', (c) => {
 
 app.get('/api/auth/me', authMiddleware, async (c) => {
   const payload = c.get('user');
-  const user = await c.env.DB.prepare('SELECT id, email, role, name, grade, level, exp, streak, last_study_date, created_at FROM users WHERE id = ?').bind(payload.id).first() as any;
+  const user = await c.env.DB.prepare('SELECT id, email, role, name, level, exp, streak, last_study_date, created_at FROM users WHERE id = ?').bind(payload.id).first() as any;
   if (!user) return c.json({ error: 'User not found' }, 404);
 
   user.topicStats = {};
@@ -128,14 +128,16 @@ app.get('/api/settings', async (c) => {
       endpoint: 'https://api.openai.com/v1', 
       apiKey: '', 
       model: 'gpt-4o', 
-      duplicatePreventionMode: 'seed' 
+      duplicatePreventionMode: 'seed',
+      curriculumGuide: ''
     });
   }
   return c.json({
     endpoint: dbSettings.endpoint,
     apiKey: dbSettings.api_key,
     model: dbSettings.model,
-    duplicatePreventionMode: dbSettings.duplicate_prevention_mode
+    duplicatePreventionMode: dbSettings.duplicate_prevention_mode,
+    curriculumGuide: dbSettings.curriculum_guide || ''
   });
 });
 
@@ -145,11 +147,12 @@ app.put('/api/settings', adminMiddleware, async (c) => {
   const apiKey = body.apiKey || '';
   const model = body.model || 'gpt-4o';
   const duplicatePreventionMode = body.duplicatePreventionMode || 'seed';
+  const curriculumGuide = body.curriculumGuide || '';
   
   await c.env.DB.prepare('DELETE FROM system_settings').run();
   await c.env.DB.prepare(
-    'INSERT INTO system_settings (id, endpoint, api_key, model, duplicate_prevention_mode) VALUES (?, ?, ?, ?, ?)'
-  ).bind('default', endpoint, apiKey, model, duplicatePreventionMode).run();
+    'INSERT INTO system_settings (id, endpoint, api_key, model, duplicate_prevention_mode, curriculum_guide) VALUES (?, ?, ?, ?, ?, ?)'
+  ).bind('default', endpoint, apiKey, model, duplicatePreventionMode, curriculumGuide).run();
   
   return c.json({ message: 'Settings updated' });
 });
@@ -158,8 +161,8 @@ app.put('/api/settings', adminMiddleware, async (c) => {
 app.put('/api/user', async (c) => {
   const user = c.get('user');
   const body = await c.req.json();
-  const { name, grade } = body;
-  await c.env.DB.prepare('UPDATE users SET name = ?, grade = ? WHERE id = ?').bind(name, grade, user.id).run();
+  const { name } = body;
+  await c.env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, user.id).run();
   return c.json({ message: 'User updated' });
 });
 
@@ -217,7 +220,7 @@ app.get('/api/daily_records', async (c) => {
 
 // Admin APIs
 app.get('/api/admin/users', adminMiddleware, async (c) => {
-  const result = await c.env.DB.prepare('SELECT id, name, email, role, grade, level, exp, streak, last_study_date, created_at FROM users ORDER BY created_at DESC').all();
+  const result = await c.env.DB.prepare('SELECT id, name, email, role, level, exp, streak, last_study_date, created_at FROM users ORDER BY created_at DESC').all();
   return c.json(result.results);
 });
 
@@ -235,43 +238,94 @@ app.get('/api/admin/users/:id/chat_logs', adminMiddleware, async (c) => {
   return c.json(formatted);
 });
 
-// Custom Drills
+// --- Custom Drills ---
+// Get a single drill by ID (own or public)
+app.get('/api/custom_drills/:id', async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  const drill = await c.env.DB.prepare(
+    'SELECT d.*, u.name as author_name FROM custom_drill_sets d JOIN users u ON d.user_id = u.id WHERE d.id = ?'
+  ).bind(id).first() as any;
+  if (!drill) return c.json({ error: 'Not found' }, 404);
+  // Only allow access if own or public
+  if (drill.user_id !== user.id && drill.is_public !== 1) return c.json({ error: 'Forbidden' }, 403);
+  return c.json(formatDrill(drill));
+});
+
+// Get drills owned by the user (private + their public)
 app.get('/api/custom_drills', async (c) => {
   const user = c.get('user');
-  const result = await c.env.DB.prepare('SELECT * FROM custom_drill_sets WHERE user_id = ? OR is_public = 1').bind(user.id).all();
+  const result = await c.env.DB.prepare('SELECT * FROM custom_drill_sets WHERE user_id = ? ORDER BY created_at DESC').bind(user.id).all();
   const drills = result.results as any[];
-  const formatted = drills.map(d => {
-    let parsedCreatedAt = Date.now();
-    if (d.created_at) {
-      const t = new Date(d.created_at).getTime();
-      if (!isNaN(t)) {
-        parsedCreatedAt = t;
-      } else if (!isNaN(Number(d.created_at))) {
-        parsedCreatedAt = Number(d.created_at);
-      }
-    }
-    return {
-      ...d,
-      createdAt: parsedCreatedAt,
-      questions: JSON.parse(d.questions),
-      is_public: d.is_public === 1
-    };
-  });
+  const formatted = drills.map(d => formatDrill(d));
   return c.json(formatted);
 });
 
+// Get all public drills (for Explore page)
+app.get('/api/explore', async (c) => {
+  const user = c.get('user');
+  const { search, subject, tag, sort } = c.req.query();
+  
+  let query = 'SELECT d.*, u.name as author_name FROM custom_drill_sets d JOIN users u ON d.user_id = u.id WHERE d.is_public = 1';
+  const params: any[] = [];
+  
+  if (search) {
+    query += ' AND (d.title LIKE ? OR d.topic LIKE ? OR d.description LIKE ?)';
+    const term = `%${search}%`;
+    params.push(term, term, term);
+  }
+  if (subject && subject !== 'all') {
+    query += ' AND d.subject = ?';
+    params.push(subject);
+  }
+  if (tag) {
+    query += ' AND d.tags LIKE ?';
+    params.push(`%"${tag}"%`);
+  }
+  
+  if (sort === 'oldest') {
+    query += ' ORDER BY d.created_at ASC';
+  } else {
+    query += ' ORDER BY d.created_at DESC';
+  }
+  
+  const result = await c.env.DB.prepare(query).bind(...params).all();
+  const drills = result.results as any[];
+  const formatted = drills.map(d => formatDrill(d));
+  return c.json(formatted);
+});
+
+// Fork a drill set (copy a public drill to user's own collection)
+app.post('/api/explore/:id/fork', async (c) => {
+  const user = c.get('user');
+  const originalId = c.req.param('id');
+  
+  const original = await c.env.DB.prepare('SELECT * FROM custom_drill_sets WHERE id = ? AND is_public = 1').bind(originalId).first() as any;
+  if (!original) return c.json({ error: 'Drill set not found' }, 404);
+  
+  const newId = crypto.randomUUID();
+  await c.env.DB.prepare(
+    'INSERT INTO custom_drill_sets (id, user_id, title, subject, topic, questions, description, tags, is_public, forked_from, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).bind(
+    newId, user.id, original.title, original.subject, original.topic, original.questions,
+    original.description, original.tags, 0, originalId, new Date().toISOString()
+  ).run();
+  
+  return c.json({ message: 'Forked successfully', id: newId });
+});
+
+// Create or update a custom drill set (available to all users)
 app.post('/api/custom_drills', async (c) => {
   const user = c.get('user');
-  if (user.role !== 'admin') return c.json({ error: 'Forbidden: Admins only' }, 403);
   const body = await c.req.json();
-  const { id, title, subject, topic, questions, is_public, createdAt } = body;
+  const { id, title, subject, topic, questions, description, tags, is_public, createdAt } = body;
   
   const existing = await c.env.DB.prepare('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').bind(id).first() as any;
   if (existing) {
     if (existing.user_id !== user.id) return c.json({ error: 'Forbidden' }, 403);
     await c.env.DB.prepare(
-      'UPDATE custom_drill_sets SET title = ?, subject = ?, topic = ?, questions = ?, is_public = ? WHERE id = ?'
-    ).bind(title, subject, topic, JSON.stringify(questions), is_public ? 1 : 0, id).run();
+      'UPDATE custom_drill_sets SET title = ?, subject = ?, topic = ?, questions = ?, description = ?, tags = ?, is_public = ? WHERE id = ?'
+    ).bind(title, subject, topic, JSON.stringify(questions), description || '', JSON.stringify(tags || []), is_public ? 1 : 0, id).run();
   } else {
     let createdAtIso = new Date().toISOString();
     if (createdAt) {
@@ -283,15 +337,14 @@ app.post('/api/custom_drills', async (c) => {
       }
     }
     await c.env.DB.prepare(
-      'INSERT INTO custom_drill_sets (id, user_id, title, subject, topic, questions, is_public, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(id, user.id, title, subject, topic, JSON.stringify(questions), is_public ? 1 : 0, createdAtIso).run();
+      'INSERT INTO custom_drill_sets (id, user_id, title, subject, topic, questions, description, tags, is_public, forked_from, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(id, user.id, title, subject, topic, JSON.stringify(questions), description || '', JSON.stringify(tags || []), is_public ? 1 : 0, null, createdAtIso).run();
   }
   return c.json({ message: 'Saved' });
 });
 
 app.delete('/api/custom_drills/:id', async (c) => {
   const user = c.get('user');
-  if (user.role !== 'admin') return c.json({ error: 'Forbidden: Admins only' }, 403);
   const id = c.req.param('id');
   const existing = await c.env.DB.prepare('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').bind(id).first() as any;
   if (existing && existing.user_id === user.id) {
@@ -318,5 +371,28 @@ app.post('/api/chat_logs', async (c) => {
     return c.json({ error: 'Failed to save chat log' }, 500);
   }
 });
+
+// --- Helper ---
+function formatDrill(d: any) {
+  let parsedCreatedAt = Date.now();
+  if (d.created_at) {
+    const t = new Date(d.created_at).getTime();
+    if (!isNaN(t)) {
+      parsedCreatedAt = t;
+    } else if (!isNaN(Number(d.created_at))) {
+      parsedCreatedAt = Number(d.created_at);
+    }
+  }
+  return {
+    ...d,
+    createdAt: parsedCreatedAt,
+    questions: JSON.parse(d.questions),
+    tags: d.tags ? JSON.parse(d.tags) : [],
+    description: d.description || '',
+    is_public: d.is_public === 1,
+    forked_from: d.forked_from || null,
+    author_name: d.author_name || null
+  };
+}
 
 export default app;

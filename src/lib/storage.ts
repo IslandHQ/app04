@@ -17,7 +17,6 @@ export interface AdminUser {
   username: string;
   name: string;
   role: string;
-  grade: string;
   level: number;
   exp: number;
   streak: number;
@@ -29,6 +28,7 @@ export interface AISettings {
   apiKey: string;
   model: string;
   duplicatePreventionMode: 'history' | 'seed';
+  curriculumGuide: string;
 }
 
 export interface DailyRecord {
@@ -47,11 +47,14 @@ export interface CustomDrillSet {
   topic: string;
   createdAt: number;
   questions: DrillQuestion[];
+  description?: string;
+  tags?: string[];
   is_public?: boolean;
+  forked_from?: string | null;
+  author_name?: string | null;
 }
 
 export interface UserData {
-  grade: string;
   name: string;
   streak: number;
   lastStudyDate: string;
@@ -82,7 +85,6 @@ export const Storage = {
     const data = await res.json();
     const user = data.user;
     return {
-      grade: user.grade || '中1',
       name: user.name,
       streak: user.streak || 0,
       lastStudyDate: user.last_study_date || '',
@@ -97,7 +99,7 @@ export const Storage = {
     await fetch('/api/user', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: userData.name, grade: userData.grade })
+      body: JSON.stringify({ name: userData.name })
     });
   },
   
@@ -119,6 +121,12 @@ export const Storage = {
     return res.json();
   },
   
+  async getCustomDrillSet(id: string): Promise<CustomDrillSet | null> {
+    const res = await fetch(`/api/custom_drills/${id}`);
+    if (!res.ok) return null;
+    return res.json();
+  },
+  
   async saveCustomDrillSet(drillSet: CustomDrillSet): Promise<void> {
     await fetch('/api/custom_drills', {
       method: 'POST',
@@ -129,6 +137,23 @@ export const Storage = {
   
   async deleteCustomDrillSet(id: string): Promise<void> {
     await fetch(`/api/custom_drills/${id}`, { method: 'DELETE' });
+  },
+  
+  async exploreDrills(params?: { search?: string; subject?: string; tag?: string; sort?: string }): Promise<CustomDrillSet[]> {
+    const query = new URLSearchParams();
+    if (params?.search) query.set('search', params.search);
+    if (params?.subject) query.set('subject', params.subject);
+    if (params?.tag) query.set('tag', params.tag);
+    if (params?.sort) query.set('sort', params.sort);
+    const res = await fetch(`/api/explore?${query.toString()}`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+  
+  async forkDrillSet(id: string): Promise<{ id: string }> {
+    const res = await fetch(`/api/explore/${id}/fork`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to fork');
+    return res.json();
   },
   
   async addStudyResult(subject: string, topic: string, minutes: number, isCorrect: boolean): Promise<{ gainedExp: number, leveledUp: boolean }> {

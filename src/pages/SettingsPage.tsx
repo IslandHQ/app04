@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save, Server, Key, Cpu, User, LogOut } from 'lucide-react';
+import { Save, Server, Key, Cpu, User, LogOut, BookOpen } from 'lucide-react';
 import { Storage, type AISettings, type UserData } from '../lib/storage';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -10,10 +10,10 @@ export default function SettingsPage() {
     endpoint: 'https://api.openai.com/v1',
     apiKey: '',
     model: 'gpt-4o',
-    duplicatePreventionMode: 'seed'
+    duplicatePreventionMode: 'seed',
+    curriculumGuide: ''
   });
   const [userData, setUserData] = useState<UserData>({
-    grade: '中1',
     name: '',
     streak: 0,
     lastStudyDate: '',
@@ -29,11 +29,9 @@ export default function SettingsPage() {
       try {
         const currentSettings = await Storage.getSettings();
         setSettings(currentSettings);
-        // In Phase 3, this will be fetched from API, but for now we sync basic fields
         const localUser = await Storage.getUserData();
         if (user) {
           localUser.name = user.name;
-          if (user.grade) localUser.grade = user.grade;
         }
         setUserData(localUser);
       } catch(e) {
@@ -43,7 +41,7 @@ export default function SettingsPage() {
     load();
   }, [user]);
 
-  const handleChange = (field: keyof AISettings) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (field: keyof AISettings) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setSettings(prev => ({ ...prev, [field]: e.target.value }));
   };
 
@@ -85,7 +83,7 @@ export default function SettingsPage() {
           <User size={18} color="var(--primary)" /> ユーザー設定
         </h3>
 
-        <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ marginBottom: '2rem' }}>
           <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.5rem' }}>ニックネーム</label>
           <input
             type="text"
@@ -95,23 +93,6 @@ export default function SettingsPage() {
             placeholder="たろう"
             required
           />
-        </div>
-
-        <div style={{ marginBottom: '2rem' }}>
-          <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.5rem' }}>学年</label>
-          <select
-            className="input-field"
-            value={userData.grade}
-            onChange={handleUserChange('grade')}
-            style={{ width: '100%', background: 'white' }}
-          >
-            <option value="中1">中学1年生</option>
-            <option value="中2">中学2年生</option>
-            <option value="中3">中学3年生</option>
-          </select>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            学年に合わせた難易度の問題が生成されます。
-          </p>
         </div>
 
         {user?.role === 'admin' && (
@@ -168,7 +149,7 @@ export default function SettingsPage() {
               />
             </div>
 
-            <div style={{ marginBottom: '2rem' }}>
+            <div style={{ marginBottom: '1.5rem' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                 重複防止モード
               </label>
@@ -181,6 +162,24 @@ export default function SettingsPage() {
                 <option value="seed">シード値ベース（軽量・推奨）</option>
                 <option value="history">履歴ベース（より確実・通信量増）</option>
               </select>
+            </div>
+
+            <div style={{ marginBottom: '2rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                <BookOpen size={18} color="var(--primary)" />
+                カリキュラム指針
+              </label>
+              <textarea
+                className="input-field"
+                value={settings.curriculumGuide}
+                onChange={handleChange('curriculumGuide')}
+                placeholder="例: 日本の学習指導要領に準拠してください。&#10;例: 中学校数学の範囲（正負の数、文字式、方程式、関数）に絞ってください。&#10;例: 大学入試共通テストレベルの問題を生成してください。&#10;空欄の場合は特に制限を設けません。"
+                rows={5}
+                style={{ resize: 'vertical' }}
+              />
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem', lineHeight: 1.4 }}>
+                問題生成時のプロンプトに埋め込まれます。学年に依存しない汎用的な指針を設定できます。
+              </p>
             </div>
           </>
         )}

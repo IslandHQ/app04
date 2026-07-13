@@ -10,7 +10,6 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   role TEXT CHECK(role IN ('admin', 'user')) NOT NULL DEFAULT 'user',
   name TEXT NOT NULL,
-  grade TEXT NOT NULL,
   level INTEGER NOT NULL DEFAULT 1,
   exp INTEGER NOT NULL DEFAULT 0,
   streak INTEGER NOT NULL DEFAULT 0,
@@ -23,7 +22,8 @@ CREATE TABLE IF NOT EXISTS system_settings (
   endpoint TEXT NOT NULL,
   api_key TEXT NOT NULL,
   model TEXT NOT NULL,
-  duplicate_prevention_mode TEXT NOT NULL
+  duplicate_prevention_mode TEXT NOT NULL,
+  curriculum_guide TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS daily_records (
@@ -53,7 +53,10 @@ CREATE TABLE IF NOT EXISTS custom_drill_sets (
   subject TEXT NOT NULL,
   topic TEXT NOT NULL,
   questions TEXT NOT NULL, -- JSON string
+  description TEXT NOT NULL DEFAULT '',
+  tags TEXT NOT NULL DEFAULT '[]', -- JSON array of strings
   is_public INTEGER NOT NULL DEFAULT 0, -- 0: false, 1: true
+  forked_from TEXT, -- original drill set id if forked
   created_at TEXT NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

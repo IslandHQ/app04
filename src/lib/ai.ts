@@ -44,9 +44,14 @@ ${history.map((text, i) => `${i + 1}. ${text}`).join('\n')}
 `;
   }
 
-  const prompt = `あなたは日本の学習指導要領に精通した優秀なAIチューターです。
-中学生の学習指導要領に基づき、以下の条件で適切なレベルのドリル問題を${count}問作成し、JSON形式の「配列」で出力してください。
+  const curriculumSection = settings.curriculumGuide?.trim()
+    ? `\n【学習指導要領・カリキュラム指針】\n以下の指針に従って問題を作成してください：\n${settings.curriculumGuide.trim()}\n`
+    : '';
+
+  const prompt = `あなたは優秀なAIチューターです。
+以下の条件で適切なレベルのドリル問題を${count}問作成し、JSON形式の「配列」で出力してください。
 問題は選択形式（4択）とし、段階的なヒント（2段階）を含めてください。
+${curriculumSection}
 
 ${customInstructions ? `【特別な指示】\n以下の指示に必ず従ってください：\n${customInstructions}\n` : ''}
 
@@ -64,10 +69,9 @@ JSONの構造は必ず以下の配列形式にしてください。
   }
 ]
 
-ユーザーの学年: ${userData.grade}
 科目: ${subject}
 単元: ${topic}
-難易度: 学習指導要領に基づいた適切なレベル
+難易度: 学習者のレベルに応じた適切なレベル（現在のレベル: Lv.${userData.level}）
 ${duplicationPreventionPrompt}
 
 出力は必ずJSON配列のみにし、余計な説明は省いてください。`;
@@ -75,7 +79,7 @@ ${duplicationPreventionPrompt}
   const response = await openai.chat.completions.create({
     model: settings.model,
     messages: [
-      { role: 'system', content: 'あなたは正確なJSONのみを出力する教育アシスタントです。出力前に内容が学習指導要領に準拠しているか、また正解が選択肢に含まれているかセルフチェックを行ってください。' },
+      { role: 'system', content: 'あなたは正確なJSONのみを出力する教育アシスタントです。出力前に内容が適切か、また正解が選択肢に含まれているかセルフチェックを行ってください。' },
       { role: 'user', content: prompt }
     ]
   });
@@ -170,7 +174,6 @@ export async function generateUserSummary(
 
 【基本情報】
 名前: ${userData.name}
-学年: ${userData.grade}
 現在のレベル: Lv.${userData.level}
 連続学習日数: ${userData.streak}日
 

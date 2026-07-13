@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Flame, Settings, BookOpen, Globe, Beaker, Library, RefreshCw } from 'lucide-react';
+import { Play, Flame, Settings, BookOpen, Globe, Beaker, Library, RefreshCw, Compass } from 'lucide-react';
 import { Storage, type UserData, type CustomDrillSet } from '../lib/storage';
 
 export default function HomePage() {
@@ -144,7 +144,7 @@ export default function HomePage() {
                   {subject.icon}
                 </div>
                 <div>
-                  <h4 style={{ margin: 0, fontSize: '1.125rem' }}>{userData.grade} {subject.name}</h4>
+                  <h4 style={{ margin: 0, fontSize: '1.125rem' }}>{subject.name}</h4>
                   <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>AIおすすめ単元</p>
                 </div>
               </div>
@@ -183,6 +183,28 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      <div className="animate-slide-up" style={{ marginBottom: '2rem' }}>
+        <Link
+          to="/explore"
+          style={{ textDecoration: 'none', color: 'inherit' }}
+        >
+          <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '4px solid var(--secondary)' }}>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '0.75rem', borderRadius: '50%' }}>
+                <Compass size={24} color="var(--secondary)" />
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '1.125rem' }}>みんなの問題を探す</h4>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>公開された問題セットを発掘</p>
+              </div>
+            </div>
+            <div className="btn btn-accent" style={{ padding: '0.5rem 1rem', borderRadius: '1rem' }}>
+              <Globe size={16} /> 探す
+            </div>
+          </div>
+        </Link>
+      </div>
     </div>
   );
 }

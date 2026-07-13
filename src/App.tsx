@@ -5,6 +5,7 @@ import DrillPage from './pages/DrillPage';
 import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
 import CustomDrillPage from './pages/CustomDrillPage';
+import ExplorePage from './pages/ExplorePage';
 import AuthPage from './pages/AuthPage';
 import { useAuth } from './contexts/AuthContext';
 
@@ -24,6 +25,7 @@ function App() {
       <Route path="/" element={<Layout />}>
         <Route index element={<HomePage />} />
         <Route path="drill" element={<DrillPage />} />
+        <Route path="explore" element={<ExplorePage />} />
         <Route path="custom" element={<CustomDrillPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="settings" element={<SettingsPage />} />
