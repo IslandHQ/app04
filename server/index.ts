@@ -1,7 +1,10 @@
-import { Hono } from 'hono';
+import { Hono, type Context, type Next } from 'hono';
 import { sign, verify } from 'hono/jwt';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { hashPassword, verifyPassword } from './auth';
+import { platform } from './platform';
+import OpenAI from 'openai';
+import { HTTPException } from 'hono/http-exception';
 
 type Bindings = {
   DB: D1Database;
@@ -10,28 +13,42 @@ type Bindings = {
 };
 
 type Variables = {
-  user: any;
+  user: { id: string; role: string; status: string };
 };
+type AppEnv = { Bindings: Bindings; Variables: Variables };
+interface DBUser { id:string; email:string; name:string; grade:string; role:string; status:string; password_hash?:string; level:number; exp:number; streak:number; last_study_date:string; topicStats?:Record<string,unknown>; detailedStats?:Record<string,unknown> }
+interface DBSettings { endpoint:string; api_key:string; model:string; duplicate_prevention_mode:string }
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+function secretFor(c: Context<AppEnv>) {
+  if (c.env.JWT_SECRET) return c.env.JWT_SECRET;
+  if (['localhost','127.0.0.1','[::1]'].includes(new URL(c.req.url).hostname)) return 'super_secret_key_for_dev_only';
+  throw new HTTPException(503, { message: '認証設定が完了していません' });
+}
+app.onError((err,c) => {
+  if(err instanceof HTTPException) return c.json({ error:err.message },err.status);
+  console.error(err);return c.json({error:'処理に失敗しました'},500);
+});
 
 // --- Authentication Middleware ---
-const authMiddleware = async (c: any, next: any) => {
+const authMiddleware = async (c: Context<AppEnv>, next: Next) => {
   const token = getCookie(c, 'auth_token');
   if (!token) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
-  const secret = c.env.JWT_SECRET || 'super_secret_key_for_dev_only';
+  const secret = secretFor(c);
   try {
     const payload = await verify(token, secret, 'HS256');
-    c.set('user', payload);
-    await next();
-  } catch (err) {
+    const currentUser = await c.env.DB.prepare('SELECT id,role,status FROM users WHERE id=?').bind(payload.id).first<Variables['user']>();
+    if (!currentUser || currentUser.status !== 'active') return c.json({ error: 'アカウントは利用できません' }, 401);
+    c.set('user', currentUser);
+  } catch {
     return c.json({ error: 'Invalid token' }, 401);
   }
+  await next();
 };
 
-const adminMiddleware = async (c: any, next: any) => {
+const adminMiddleware = async (c: Context<AppEnv>, next: Next) => {
   const user = c.get('user');
   if (user.role !== 'admin') {
     return c.json({ error: 'Forbidden' }, 403);
@@ -43,6 +60,7 @@ app.get('/api/health', (c) => c.json({ status: 'ok' }));
 
 // --- Auth Routes ---
 app.post('/api/auth/signup', async (c) => {
+  const secret = secretFor(c);
   const body = await c.req.json();
   const { email, password, name, grade } = body;
   
@@ -60,24 +78,23 @@ app.post('/api/auth/signup', async (c) => {
     const id = crypto.randomUUID();
     const created_at = new Date().toISOString();
     
-    const userCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users').first() as any;
+    const userCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users').first<{count:number}>();
     const userCount = userCountResult?.count || 0;
     const role = userCount === 0 ? 'admin' : 'user';
 
     await c.env.DB.prepare(
       'INSERT INTO users (id, email, password_hash, name, grade, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(id, email, password_hash, name, grade || '中1', role, created_at).run();
+    ).bind(id, email, password_hash, name, grade || '', role, created_at).run();
 
-    const secret = c.env.JWT_SECRET || 'super_secret_key_for_dev_only';
-    const token = await sign({ id, email, role, name }, secret);
+    const token = await sign({ id, email, role, name, exp: Math.floor(Date.now()/1000)+86400 }, secret);
     setCookie(c, 'auth_token', token, {
-      httpOnly: true, secure: c.env.NODE_ENV === 'production', sameSite: 'Strict', path: '/'
+      httpOnly: true, secure: new URL(c.req.url).protocol === 'https:', sameSite: 'Strict', path: '/'
     });
 
-    return c.json({ message: 'User created successfully', user: { id, email, name, grade: grade || '中1', role } });
-  } catch (err: any) {
+    return c.json({ message: 'User created successfully', user: { id, email, name, grade: grade || '', role } });
+  } catch (err) {
     console.error('Signup error:', err);
-    return c.json({ error: 'Failed to create user', details: err.message }, 500);
+    return c.json({ error: 'Failed to create user' }, 500);
   }
 });
 
@@ -87,16 +104,17 @@ app.post('/api/auth/login', async (c) => {
 
   if (!email || !password) return c.json({ error: 'Missing email or password' }, 400);
 
-  const user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first() as any;
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<DBUser>();
   if (!user) return c.json({ error: 'Invalid credentials' }, 401);
+  if (user.status !== 'active') return c.json({ error: 'アカウントは利用できません' }, 401);
 
-  const isMatch = await verifyPassword(password, user.password_hash);
+  const isMatch = await verifyPassword(password, user.password_hash || '');
   if (!isMatch) return c.json({ error: 'Invalid credentials' }, 401);
 
-  const secret = c.env.JWT_SECRET || 'super_secret_key_for_dev_only';
-  const token = await sign({ id: user.id, email: user.email, role: user.role, name: user.name }, secret);
+  const secret = secretFor(c);
+  const token = await sign({ id: user.id, email: user.email, role: user.role, name: user.name, exp: Math.floor(Date.now()/1000)+86400 }, secret);
   setCookie(c, 'auth_token', token, {
-    httpOnly: true, secure: c.env.NODE_ENV === 'production', sameSite: 'Strict', path: '/'
+    httpOnly: true, secure: new URL(c.req.url).protocol === 'https:', sameSite: 'Strict', path: '/'
   });
 
   delete user.password_hash;
@@ -110,7 +128,7 @@ app.post('/api/auth/logout', (c) => {
 
 app.get('/api/auth/me', authMiddleware, async (c) => {
   const payload = c.get('user');
-  const user = await c.env.DB.prepare('SELECT id, email, role, name, grade, level, exp, streak, last_study_date, created_at FROM users WHERE id = ?').bind(payload.id).first() as any;
+  const user = await c.env.DB.prepare('SELECT id, email, role, name, grade, level, exp, streak, last_study_date, created_at FROM users WHERE id = ?').bind(payload.id).first<DBUser>();
   if (!user) return c.json({ error: 'User not found' }, 404);
 
   user.topicStats = {};
@@ -120,9 +138,23 @@ app.get('/api/auth/me', authMiddleware, async (c) => {
 
 // --- API Routes (Protected) ---
 app.use('/api/*', authMiddleware);
+app.route('/api/platform', platform);
+
+// AI credentials stay on the Worker, never in the browser bundle or settings response.
+app.post('/api/ai/completion', async c => {
+  const settings = await c.env.DB.prepare('SELECT * FROM system_settings LIMIT 1').first<DBSettings>();
+  if (!settings?.api_key) return c.json({ error: '管理者がAI設定を登録してください' }, 400);
+  const body = await c.req.json();
+  if (!Array.isArray(body.messages) || body.messages.length > 100 || body.messages.some((m: {role:string;content:string}) => !m || !['system','user','assistant'].includes(m.role) || typeof m.content !== 'string' || m.content.length > 50000)) return c.json({ error: 'メッセージが不正です' }, 400);
+  try {
+    const ai = new OpenAI({ apiKey: settings.api_key, baseURL: settings.endpoint, timeout: 60000, maxRetries: 0 });
+    const result = await ai.chat.completions.create({ model: settings.model, messages: body.messages });
+    return c.json({ choices: [{ message: { content: result.choices[0]?.message.content || '' } }] });
+  } catch { return c.json({ error: 'AIへの接続に失敗しました' }, 502); }
+});
 
 app.get('/api/settings', async (c) => {
-  let dbSettings = await c.env.DB.prepare('SELECT * FROM system_settings LIMIT 1').first() as any;
+  const dbSettings = await c.env.DB.prepare('SELECT * FROM system_settings LIMIT 1').first<DBSettings>();
   if (!dbSettings) {
     return c.json({ 
       endpoint: 'https://api.openai.com/v1', 
@@ -133,7 +165,8 @@ app.get('/api/settings', async (c) => {
   }
   return c.json({
     endpoint: dbSettings.endpoint,
-    apiKey: dbSettings.api_key,
+    apiKey: '',
+    hasApiKey: Boolean(dbSettings.api_key),
     model: dbSettings.model,
     duplicatePreventionMode: dbSettings.duplicate_prevention_mode
   });
@@ -142,14 +175,15 @@ app.get('/api/settings', async (c) => {
 app.put('/api/settings', adminMiddleware, async (c) => {
   const body = await c.req.json();
   const endpoint = body.endpoint || 'https://api.openai.com/v1';
-  const apiKey = body.apiKey || '';
+  const oldSettings = await c.env.DB.prepare('SELECT api_key FROM system_settings LIMIT 1').first<DBSettings>();
+  const apiKey = body.clearApiKey ? '' : (body.apiKey || oldSettings?.api_key || '');
   const model = body.model || 'gpt-4o';
   const duplicatePreventionMode = body.duplicatePreventionMode || 'seed';
   
-  await c.env.DB.prepare('DELETE FROM system_settings').run();
-  await c.env.DB.prepare(
-    'INSERT INTO system_settings (id, endpoint, api_key, model, duplicate_prevention_mode) VALUES (?, ?, ?, ?, ?)'
-  ).bind('default', endpoint, apiKey, model, duplicatePreventionMode).run();
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM system_settings'),
+    c.env.DB.prepare('INSERT INTO system_settings (id, endpoint, api_key, model, duplicate_prevention_mode) VALUES (?, ?, ?, ?, ?)').bind('default', endpoint, apiKey, model, duplicatePreventionMode)
+  ]);
   
   return c.json({ message: 'Settings updated' });
 });
@@ -167,12 +201,13 @@ app.put('/api/user', async (c) => {
 app.post('/api/study_result', async (c) => {
   const user = c.get('user');
   const body = await c.req.json();
-  const { subject, topic, minutes, isCorrect } = body;
+  const { minutes, isCorrect } = body;
   const today = new Date().toISOString().split('T')[0];
 
-  const dbUser = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(user.id).first() as any;
+  const dbUser = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(user.id).first<DBUser>();
+  if (!dbUser) return c.json({ error:'User not found' },404);
   
-  let todayRecord = await c.env.DB.prepare('SELECT * FROM daily_records WHERE user_id = ? AND date = ?').bind(user.id, today).first() as any;
+  const todayRecord = await c.env.DB.prepare('SELECT * FROM daily_records WHERE user_id = ? AND date = ?').bind(user.id, today).first<{id:string}>();
   
   let streak = dbUser.streak;
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -230,7 +265,7 @@ app.get('/api/admin/users/:id/records', adminMiddleware, async (c) => {
 app.get('/api/admin/users/:id/chat_logs', adminMiddleware, async (c) => {
   const userId = c.req.param('id');
   const result = await c.env.DB.prepare('SELECT * FROM chat_logs WHERE user_id = ? ORDER BY created_at DESC').bind(userId).all();
-  const logs = result.results as any[];
+  const logs = result.results as {chat_history:string}[];
   const formatted = logs.map(l => ({ ...l, chat_history: JSON.parse(l.chat_history) }));
   return c.json(formatted);
 });
@@ -239,7 +274,7 @@ app.get('/api/admin/users/:id/chat_logs', adminMiddleware, async (c) => {
 app.get('/api/custom_drills', async (c) => {
   const user = c.get('user');
   const result = await c.env.DB.prepare('SELECT * FROM custom_drill_sets WHERE user_id = ? OR is_public = 1').bind(user.id).all();
-  const drills = result.results as any[];
+  const drills = result.results as {created_at:string;questions:string;is_public:number}[];
   const formatted = drills.map(d => {
     let parsedCreatedAt = Date.now();
     if (d.created_at) {
@@ -266,7 +301,7 @@ app.post('/api/custom_drills', async (c) => {
   const body = await c.req.json();
   const { id, title, subject, topic, questions, is_public, createdAt } = body;
   
-  const existing = await c.env.DB.prepare('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').bind(id).first() as any;
+  const existing = await c.env.DB.prepare('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').bind(id).first<{id:string;user_id:string}>();
   if (existing) {
     if (existing.user_id !== user.id) return c.json({ error: 'Forbidden' }, 403);
     await c.env.DB.prepare(
@@ -293,7 +328,7 @@ app.delete('/api/custom_drills/:id', async (c) => {
   const user = c.get('user');
   if (user.role !== 'admin') return c.json({ error: 'Forbidden: Admins only' }, 403);
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').bind(id).first() as any;
+  const existing = await c.env.DB.prepare('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').bind(id).first<{id:string;user_id:string}>();
   if (existing && existing.user_id === user.id) {
     await c.env.DB.prepare('DELETE FROM custom_drill_sets WHERE id = ?').bind(id).run();
   }

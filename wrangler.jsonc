@@ -15,7 +15,7 @@
     "not_found_handling": "single-page-application"
   },
   "build": {
-    "command": "bun run build",
+    "command": "npm run build",
     "watch_dir": ["src", "server"]
   },
   "d1_databases": [

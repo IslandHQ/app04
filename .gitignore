@@ -32,3 +32,7 @@ dist-ssr
 
 # IDE files
 .gemini/
+test-results/
+playwright-report/
+.wrangler-test/
+worker-configuration.d.ts

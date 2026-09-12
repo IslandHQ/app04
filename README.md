@@ -1,73 +1,103 @@
-# React + TypeScript + Vite
+# 学習・テスト管理アプリ
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React / TypeScript の学習画面と、Hono / Cloudflare Workers / D1 のAPIで構成されています。
+学校・資格試験・研修で共通利用できる管理画面を備えています。
 
-Currently, two official plugins are available:
+## ローカル起動
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Node.js 22.13以降（推奨24以降）を用意してください。Bunは不要です。
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+npm ci
+npm run db:migrate:local
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+通常は http://localhost:8787 で起動します。初回登録したユーザーが管理者になります。
+管理者でログインし、学習画面上部の「管理画面」から `/admin/overview` を開いてください。
+`local.db` は以前の調査用ファイルです。現在のローカル実行は `.wrangler/state` 内のD1を使用します。
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 管理画面
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| URL | 機能 |
+| --- | --- |
+| `/admin/overview` | 利用者数、公開中テスト、提出・期限超過状況 |
+| `/admin/users` | 登録、検索、権限・利用状態・任意属性の編集、学習履歴・答案・会話履歴 |
+| `/admin/groups` | 学級・部署・受験者グループの作成とメンバー編集 |
+| `/admin/courses` | コース名、対象者、出題範囲の設定 |
+| `/admin/tests` | 4択テストの作成、AI生成、既存問題集の取り込み、編集、公開、複製、終了 |
+| `/admin/assignments` | 個人・グループへの配布、提出期限、受験回数の変更 |
+| `/admin/results` | 得点・合否・答案、設問別集計、CSV出力 |
+| `/settings` | 個人設定・管理者のAI接続設定 |
+
+ユーザー詳細から、そのユーザーを選択した配布画面へ移動できます。
+グループ所属とコースは別の概念です。ユーザーが学ぶテストは割り当てで指定します。
+コースはテストを整理する分類であり、コース所属によるアクセス制限は設けていません。
+
+## テストの運用
+
+1. 必要に応じてコースとグループを登録します。
+2. テストを下書き作成し、問題・正解・配点・解説を確認して公開します。
+3. 個人またはグループに割り当てます。
+4. 学習者は `/tests` で受験します。選択した回答を自動保存し、再読み込みして再開できます。
+5. 提出時にサーバーが採点し、管理者は結果画面で確認できます。
+
+- 公開後の問題は変更できません。編集する場合は複製して新しいテストを作ります。
+- 配布時に問題・配点・合格基準・制限時間をスナップショット保存します。
+- 同じテストを同じユーザーに再配布しても重複登録しません。再受験は受験回数を増やして許可します。
+- グループ配布は配布時点のメンバーに適用します。追加メンバーには再度配布してください。停止ユーザーを含む配布はエラーになります。
+- 試験モードは提出前に正解・解説を返しません。練習モードは解説を開きながら回答できます。
+- 制限時間は0〜480分（0で無制限）。開始時から経過し、中断中も止まりません。時間切れ後のアクセス時に保存済み回答で提出を確定します。ブラウザーのタイマーも結果を取得します。
+- 通信断中の未保存回答は、時間切れ後には受け付けません。画面の保存状態を確認してください。
+- 提出期限超過またはテスト終了後は手動提出できません。期限超過は管理者が期限を延長できます。終了したテストは必要なら複製します。
+- 日別ドリル記録とテスト結果は別管理です。テストでは従来ドリルの経験値を加算しません。
+
+## 既存環境の更新
+
+`migrations/` は既存データを残す追加型の更新です。
+`0000` は既存テーブルを存在しない場合だけ作成し、`0001`・`0002` は管理機能の列とテーブルを追加します。
+既存の `schema.sql` はテーブル削除を含む旧初期化用ファイルです。更新には使用しないでください。
+
+本番適用はDBのバックアップを確認した上で、管理者が明示的に行ってください。
+
+```sh
+npx wrangler secret put JWT_SECRET
+npm run db:migrate:prod
+npm run deploy
 ```
+
+`JWT_SECRET` には十分な長さのランダム値を登録してください。ローカルホスト以外では未設定時に認証を拒否します。
+既存ユーザーは利用中として引き継ぎます。停止・権限変更はAPI呼び出しごとにDBから確認します。
+自分自身の停止・降格と、最後の有効な管理者の停止・降格は拒否します。
+
+AIキーは管理者が設定画面で登録し、サーバーだけが使用します。キー入力を空欄にして保存すると既存キーを維持します。
+AIの実通信には利用するプロバイダーのキーが必要です。公開するテストはAI出力を管理者が確認してください。
+旧 `test_api.ts` のキー直接記載は環境変数方式に変更しています。以前のキーが有効な場合はプロバイダー側で失効・再発行してください。
+
+## 検証
+
+```sh
+npm run build
+npm run typecheck:server
+npm run lint
+npx playwright install chromium
+npm test
+```
+
+テストは `127.0.0.1:8790` に専用サーバーを起動し、`.wrangler-test/` に独立したDBを作成します。
+本番DBや通常のローカルDBには接続しません。テスト用データは実行ごとに追加されます。
+権限・採点・再受験・キー非公開、既存データの保持、時間切れ、管理者と学習者の画面操作、従来の苦手分析表示を確認します。
+AIプロバイダーへの有料リクエストはテストに含めません。
+
+## コード構成
+
+- `src/pages/admin/`：管理画面、ユーザーの活動履歴、設問別分析
+- `src/pages/TestsPage.tsx`：学習者の受験・結果画面
+- `src/lib/platform.ts`：管理・受験APIクライアント、CSV出力
+- `shared/platform.ts`：フロントとAPIのデータ型
+- `server/platform.ts`：管理・配布・受験・採点API
+- `server/index.ts`：認証、従来のドリルAPI、サーバー側AI通信
+- `migrations/`：DBの追加変更
+
+初版は4択・自動採点に対応します。記述式、人手採点、組織ごとの完全なデータ分離、管理操作の監査ログは含めていません。
+従来ドリルの教科・単元別統計は元の実装どおり未集計ですが、新しいテストの設問別集計は実データから計算します。

@@ -23,7 +23,7 @@ test('verify weakness analysis and review button', async ({ page }) => {
   });
 
   await page.route('**/api/settings', async route => {
-    const json = { endpoint: '', apiKey: 'dummy', model: 'gpt-4o', duplicatePreventionMode: 'seed' };
+    const json = { endpoint: '', apiKey: '', hasApiKey: true, model: 'gpt-4o', duplicatePreventionMode: 'seed' };
     await route.fulfill({ json });
   });
 
@@ -35,15 +35,16 @@ test('verify weakness analysis and review button', async ({ page }) => {
     await route.fulfill({ json: [] });
   });
 
-  await page.goto('http://127.0.0.1:8787');
+  await page.route('**/api/platform/courses', route => route.fulfill({ json: [] }));
+  await page.goto('/');
 
   // Check Home Page for Review Button
   await expect(page.locator('text=苦手発見！ 数学')).toBeVisible();
-  await page.screenshot({ path: 'home_with_weakness.png' });
+  await page.screenshot({ path: 'test-results/home_with_weakness.png' });
 
   // Check Dashboard Page for Weakness Analysis
   await page.click('text=データ');
   await expect(page.locator('text=苦手分野の分析')).toBeVisible();
   await expect(page.locator('text=連立方程式')).toBeVisible();
-  await page.screenshot({ path: 'dashboard_with_weakness.png', fullPage: true });
+  await page.screenshot({ path: 'test-results/dashboard_with_weakness.png', fullPage: true });
 });

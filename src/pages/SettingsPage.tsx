@@ -98,19 +98,10 @@ export default function SettingsPage() {
         </div>
 
         <div style={{ marginBottom: '2rem' }}>
-          <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.5rem' }}>学年</label>
-          <select
-            className="input-field"
-            value={userData.grade}
-            onChange={handleUserChange('grade')}
-            style={{ width: '100%', background: 'white' }}
-          >
-            <option value="中1">中学1年生</option>
-            <option value="中2">中学2年生</option>
-            <option value="中3">中学3年生</option>
-          </select>
+          <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.5rem' }}>学年・学習対象（任意）</label>
+<input className="input-field" value={userData.grade} onChange={handleUserChange('grade')} placeholder="例：中2、簿記3級、初学者（任意）" />
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            学年に合わせた難易度の問題が生成されます。
+            学習対象に合わせた難易度の問題が生成されます。
           </p>
         </div>
 
@@ -149,7 +140,7 @@ export default function SettingsPage() {
                 className="input-field" 
                 value={settings.apiKey}
                 onChange={handleChange('apiKey')}
-                placeholder="sk-..."
+                placeholder={settings.hasApiKey ? "登録済み（空欄なら現在のキーを保持）" : "APIキーを入力"}
               />
             </div>
 

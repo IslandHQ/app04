@@ -1,4 +1,9 @@
-import OpenAI from 'openai';
+const openai = { chat: { completions: { create: async (body: unknown) => {
+  const res = await fetch('/api/ai/completion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'AIへの接続に失敗しました');
+  return data as { choices: { message: { content: string } }[] };
+} } } };
 import { Storage, type UserData, type DailyRecord, type ChatLog, type ChatMessage } from './storage';
 
 export interface DrillQuestion {
@@ -21,13 +26,8 @@ export async function generateDrills(
   customInstructions?: string
 ): Promise<DrillQuestion[]> {
   const settings = await Storage.getSettings();
-  if (!settings.apiKey) return [];
+  if (!settings.hasApiKey) return [];
 
-  const openai = new OpenAI({
-    apiKey: settings.apiKey,
-    baseURL: settings.endpoint,
-    dangerouslyAllowBrowser: true 
-  });
 
   const userData = await Storage.getUserData();
 
@@ -44,8 +44,8 @@ ${history.map((text, i) => `${i + 1}. ${text}`).join('\n')}
 `;
   }
 
-  const prompt = `あなたは日本の学習指導要領に精通した優秀なAIチューターです。
-中学生の学習指導要領に基づき、以下の条件で適切なレベルのドリル問題を${count}問作成し、JSON形式の「配列」で出力してください。
+  const prompt = `あなたは学校教育・資格試験・研修に対応するAIチューターです。
+指定された学習対象と分野に基づき、以下の条件で適切なレベルのドリル問題を${count}問作成し、JSON形式の「配列」で出力してください。
 問題は選択形式（4択）とし、段階的なヒント（2段階）を含めてください。
 
 ${customInstructions ? `【特別な指示】\n以下の指示に必ず従ってください：\n${customInstructions}\n` : ''}
@@ -64,10 +64,10 @@ JSONの構造は必ず以下の配列形式にしてください。
   }
 ]
 
-ユーザーの学年: ${userData.grade}
+学年・学習対象: ${userData.grade}
 科目: ${subject}
 単元: ${topic}
-難易度: 学習指導要領に基づいた適切なレベル
+難易度: 指定された学習対象に適したレベル
 ${duplicationPreventionPrompt}
 
 出力は必ずJSON配列のみにし、余計な説明は省いてください。`;
@@ -75,7 +75,7 @@ ${duplicationPreventionPrompt}
   const response = await openai.chat.completions.create({
     model: settings.model,
     messages: [
-      { role: 'system', content: 'あなたは正確なJSONのみを出力する教育アシスタントです。出力前に内容が学習指導要領に準拠しているか、また正解が選択肢に含まれているかセルフチェックを行ってください。' },
+      { role: 'system', content: 'あなたは正確なJSONのみを出力する教育アシスタントです。出力前に内容が指定された学習対象に適しているか、また正解が選択肢に含まれているかセルフチェックを行ってください。' },
       { role: 'user', content: prompt }
     ]
   });
@@ -87,7 +87,11 @@ ${duplicationPreventionPrompt}
     const parsed = JSON.parse(jsonStr);
     // openaiのjson_objectは{ "questions": [...] }のような形式で返ってくることがあるため、配列を抽出
     const questions = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.drills || Object.values(parsed)[0]);
-    return Array.isArray(questions) ? questions : [questions];
+    const list = Array.isArray(questions) ? questions : [questions];
+    if (list.some(q => !q || typeof q.questionText !== 'string' || !Array.isArray(q.choices) || q.choices.length !== 4 || q.choices.some((choice: unknown) => typeof choice !== 'string') || !q.choices.includes(q.correctAnswer))) {
+      throw new Error('AIが返した問題形式が不正です。再生成してください。');
+    }
+    return list.map(q => ({ ...q, subject: q.subject || subject, topic: q.topic || topic, explanation: typeof q.explanation === 'string' ? q.explanation : '', hint1: typeof q.hint1 === 'string' ? q.hint1 : '', hint2: typeof q.hint2 === 'string' ? q.hint2 : '' }));
   }
 
   return [];
@@ -98,13 +102,8 @@ export async function chatWithTutor(
   currentQuestion: DrillQuestion
 ): Promise<string | null> {
   const settings = await Storage.getSettings();
-  if (!settings.apiKey) return null;
+  if (!settings.hasApiKey) return null;
 
-  const openai = new OpenAI({
-    apiKey: settings.apiKey,
-    baseURL: settings.endpoint,
-    dangerouslyAllowBrowser: true
-  });
 
   const systemPrompt = `あなたはソクラテス式の質問手法を用いる優秀なAI家庭教師です。
 現在ユーザーが解いている問題は以下の通りです：
@@ -145,13 +144,8 @@ export async function generateUserSummary(
   chatLogs: ChatLog[]
 ): Promise<string> {
   const settings = await Storage.getSettings();
-  if (!settings.apiKey) return 'AIの設定（APIキー等）が完了していません。設定画面からAPIキーを登録してください。';
+  if (!settings.hasApiKey) return 'AIの設定（APIキー等）が完了していません。設定画面からAPIキーを登録してください。';
 
-  const openai = new OpenAI({
-    apiKey: settings.apiKey,
-    baseURL: settings.endpoint,
-    dangerouslyAllowBrowser: true
-  });
 
   // データをAI向けに整形
   const recentRecords = records.slice(-7); // 最近7日分

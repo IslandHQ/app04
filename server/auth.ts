@@ -45,7 +45,7 @@ export async function hashPassword(password: string): Promise<string> {
   );
 
   const hashBase64 = arrayBufferToBase64(hashBuffer);
-  const saltBase64 = arrayBufferToBase64(salt);
+  const saltBase64 = arrayBufferToBase64(salt.buffer);
   return `${saltBase64}:${hashBase64}`;
 }
 
