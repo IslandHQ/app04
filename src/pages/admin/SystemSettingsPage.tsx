@@ -56,6 +56,7 @@ export default function SystemSettingsPage() {
                 }
               />
             </Field>
+            <p className="admin-muted">OpenAI互換APIのベースURLを入力してください（例：https://api.example.com/v1）。ドメインのみの場合は /v1 を補います。</p>
             <Field label="API キー">
               <input
                 type="password"

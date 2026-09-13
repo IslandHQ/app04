@@ -4,7 +4,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { hashPassword, verifyPassword } from './auth';
 import { platform } from './platform';
 import { drills } from './drills';
-import OpenAI from 'openai';
+import { normalizeAIEndpoint, aiFailureMessage } from './ai-settings';
 import { HTTPException } from 'hono/http-exception';
 
 type Bindings = {
@@ -157,10 +157,19 @@ app.post('/api/ai/completion', async c => {
   const body = await c.req.json();
   if (!Array.isArray(body.messages) || body.messages.length > 100 || body.messages.some((m: {role:string;content:string}) => !m || !['system','user','assistant'].includes(m.role) || typeof m.content !== 'string' || m.content.length > 50000)) return c.json({ error: 'メッセージが不正です' }, 400);
   try {
-    const ai = new OpenAI({ apiKey: settings.api_key, baseURL: settings.endpoint, timeout: 60000, maxRetries: 0 });
-    const result = await ai.chat.completions.create({ model: settings.model, messages: body.messages });
-    return c.json({ choices: [{ message: { content: result.choices[0]?.message.content || '' } }] });
-  } catch { return c.json({ error: 'AIへの接続に失敗しました' }, 502); }
+    const response = await fetch(`${normalizeAIEndpoint(settings.endpoint)}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.api_key}` },
+      body: JSON.stringify({ model: settings.model, messages: body.messages }),
+      signal: AbortSignal.timeout(60000),
+    });
+    if (!response.ok) return c.json({ error: aiFailureMessage({ status: response.status }) }, 502);
+    if (!response.headers.get('content-type')?.includes('application/json')) return c.json({ error: 'AI接続先からJSON以外の応答が返りました。APIのベースURLを確認してください。' }, 502);
+    const result = await response.json() as { choices?: { message?: { content?: string } }[] };
+    const content = result?.choices?.[0]?.message?.content;
+    if (typeof content !== 'string' || !content.trim()) return c.json({ error: 'AIから有効な回答が返りませんでした。接続先がOpenAI互換APIのベースURLになっているか確認してください。' }, 502);
+    return c.json({ choices: [{ message: { content } }] });
+  } catch (error) { return c.json({ error: aiFailureMessage(error) }, 502); }
 });
 
 app.get('/api/settings', async (c) => {
@@ -184,7 +193,9 @@ app.get('/api/settings', async (c) => {
 
 app.put('/api/settings', adminMiddleware, async (c) => {
   const body = await c.req.json();
-  const endpoint = body.endpoint || 'https://api.openai.com/v1';
+  let endpoint: string;
+  try { endpoint = normalizeAIEndpoint(body.endpoint || 'https://api.openai.com/v1'); }
+  catch { return c.json({ error: 'APIエンドポイントには有効なHTTP(S)のベースURLを入力してください。' }, 400); }
   const oldSettings = await c.env.DB.prepare('SELECT api_key FROM system_settings LIMIT 1').first<DBSettings>();
   const apiKey = body.clearApiKey ? '' : (body.apiKey || oldSettings?.api_key || '');
   const model = body.model || 'gpt-4o';
