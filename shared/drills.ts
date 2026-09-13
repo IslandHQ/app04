@@ -6,8 +6,10 @@ export interface DrillUnit {
   subject: string;
   name: string;
   sortOrder: number;
+  skillId?: string | null;
 }
 export interface LearningQuestion extends Question {
+  skillIds?: string[];
   hint1: string;
   hint2: string;
 }
@@ -44,6 +46,7 @@ export interface DrillAssignment {
   active: boolean;
 }
 export interface LearningSession {
+  hintLevels?: Record<string, number>;
   id: string;
   assignmentId: string;
   title: string;

@@ -27,6 +27,9 @@ export default function CustomDrillPage() {
   const [setTitle, setSetTitle] = useState('');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
+  const [groupIds,setGroupIds]=useState<string[]>([]);
+  const [groups,setGroups]=useState<{id:string;name:string}[]>([]);
+  useEffect(()=>{fetch('/api/sharing-groups').then(r=>r.json()).then(setGroups).catch(()=>{});},[]);
   const [isPublic, setIsPublic] = useState(false);
 
   useEffect(() => {
@@ -102,7 +105,7 @@ export default function CustomDrillPage() {
       topic,
       createdAt: editingSetId ? savedSets.find(s => s.id === editingSetId)?.createdAt || Date.now() : Date.now(),
       questions: generatedQuestions,
-      is_public: isPublic
+      is_public: isPublic, groupIds
     };
     try {
       await Storage.saveCustomDrillSet(newSet);
@@ -112,7 +115,7 @@ export default function CustomDrillPage() {
       setGeneratedQuestions([]);
       setTopic('');
       setInstructions('');
-      setIsPublic(false);
+      setIsPublic(false);setGroupIds([]);
     } catch {
       alert('保存に失敗しました');
     }
@@ -131,7 +134,7 @@ export default function CustomDrillPage() {
     setTopic(set.topic);
     setSetTitle(set.title);
     setGeneratedQuestions(set.questions);
-    setIsPublic(set.is_public || false);
+    setIsPublic(set.is_public || false);setGroupIds(set.groupIds||[]);
     setCurrentQuestionIndex(0);
     setActiveTab('edit');
   };
@@ -196,7 +199,7 @@ export default function CustomDrillPage() {
         >
           保存済みセット
         </button>
-        {user?.role === 'admin' && (
+        {user && (
           <button 
             className={`btn ${activeTab === 'create' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => {
@@ -258,6 +261,7 @@ export default function CustomDrillPage() {
         </div>
       )}
 
+      {activeTab === 'create' && generatedQuestions.length === 0 && <button className="btn" onClick={()=>{setTopic(topic||'基礎');setGeneratedQuestions([{subject:actualSubject,topic:topic||'基礎',questionText:'',choices:['','','',''],correctAnswer:'',explanation:'',hint1:'',hint2:''}]);setSetTitle('手動作成の問題集');}}>AIを使わず手動で作成</button>}
       {activeTab === 'create' && generatedQuestions.length === 0 && (
         <div className="glass-panel animate-slide-up" style={{ padding: '1.5rem' }}>
           <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>どんな問題を作りますか？</h3>
@@ -358,7 +362,7 @@ export default function CustomDrillPage() {
               />
             </div>
             
-            <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ marginBottom: '1rem', display: 'flex', flexWrap:'wrap', alignItems: 'center', gap: '0.5rem' }}>
               <input 
                 type="checkbox" 
                 id="isPublic"
@@ -366,6 +370,7 @@ export default function CustomDrillPage() {
                 onChange={e => setIsPublic(e.target.checked)}
                 style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }}
               />
+              {!isPublic&&<div><p>共有先（未選択なら自分のみ）</p>{groups.map(g=><label key={g.id} style={{display:'block'}}><input type="checkbox" checked={groupIds.includes(g.id)} onChange={e=>setGroupIds(e.target.checked?[...groupIds,g.id]:groupIds.filter(id=>id!==g.id))}/>{g.name}</label>)}</div>}
               <label htmlFor="isPublic" style={{ fontSize: '0.9rem', cursor: 'pointer' }}>
                 他のユーザーに公開する
               </label>

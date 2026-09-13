@@ -38,6 +38,7 @@ function validateQuestions(value: unknown): LearningQuestion[] {
       category: text(q.category || ""),
       hint1: text(q.hint1 || "", 3000),
       hint2: text(q.hint2 || "", 3000),
+      skillIds: q.skillIds ? ids(q.skillIds).slice(0, 10) : [],
     };
   });
   if (new Set(result.map((q) => q.id)).size !== result.length)
@@ -58,7 +59,10 @@ function drillFrom(r: Row): LearningDrill {
     status: r.status as LearningDrill["status"],
     targetCount: Number(r.target_count),
     questions: JSON.parse(String(r.questions)),
-    questionCount: JSON.parse(String(r.questions)).length,
+    questionCount:
+      r.question_count === undefined
+        ? JSON.parse(String(r.questions)).length
+        : Number(r.question_count),
     createdAt: String(r.created_at),
   };
 }
@@ -90,6 +94,7 @@ drills.get("/admin/drill-units", async (c) => {
       subject: r.subject,
       name: r.name,
       sortOrder: r.sort_order,
+      skillId: r.skill_id,
     })),
   );
 });
@@ -126,7 +131,7 @@ drills.post("/admin/drill-units/bulk", async (c) => {
     rows.map(
       (u: { id: string; subject: string; name: string; order: number }) =>
         c.env.DB.prepare(
-          "INSERT OR IGNORE INTO drill_units VALUES (?,?,?,?,?)",
+          "INSERT OR IGNORE INTO drill_units(id,course_id,subject,name,sort_order) VALUES (?,?,?,?,?)",
         ).bind(u.id, b.courseId, u.subject, u.name, u.order),
     ),
   );
@@ -134,7 +139,10 @@ drills.post("/admin/drill-units/bulk", async (c) => {
 });
 drills.get("/admin/drills", async (c) => {
   const rows = await c.env.DB.prepare(
-    librarySQL + " ORDER BY d.created_at DESC,d.id",
+    librarySQL.replace(
+      "d.*",
+      "d.id,d.unit_id,d.title,d.status,d.target_count,d.created_at,'[]' AS questions,json_array_length(d.questions) AS question_count",
+    ) + " ORDER BY d.created_at DESC,d.id",
   ).all<Row>();
   return c.json(
     rows.results.map((r) => {
@@ -181,6 +189,25 @@ drills.post("/admin/drills/bulk", async (c) => {
 drills.put("/admin/drills/:id", async (c) => {
   const b = await c.req.json();
   const qs = validateQuestions(b.questions);
+  const unitSkill = await c.env.DB.prepare(
+    "SELECT skill_id FROM drill_units WHERE id=?",
+  )
+    .bind(b.unitId)
+    .first<{ skill_id: string | null }>();
+  for (const q of qs)
+    if (!q.skillIds?.length && unitSkill?.skill_id)
+      q.skillIds = [unitSkill.skill_id];
+  const knownSkills = (
+    await c.env.DB.prepare("SELECT id FROM learning_skills").all<{
+      id: string;
+    }>()
+  ).results;
+  if (
+    qs.some((q) =>
+      q.skillIds?.some((id) => !knownSkills.some((s) => s.id === id)),
+    )
+  )
+    fail("技能が見つかりません");
   const id = c.req.param("id");
   if (
     !(await c.env.DB.prepare("SELECT id FROM drill_units WHERE id=?")
@@ -440,6 +467,14 @@ drills.post("/drill-assignments/:id/start", async (c) => {
 const sessionSQL =
   "SELECT s.* FROM drill_sessions s JOIN drill_assignments a ON a.id=s.assignment_id WHERE s.id=? AND a.user_id=? AND a.active=1";
 async function sessionView(db: D1Database, r: Row) {
+  const support = (
+    await db
+      .prepare(
+        "SELECT question_id,hint_level FROM drill_support WHERE session_id=?",
+      )
+      .bind(r.id)
+      .all<{ question_id: string; hint_level: number }>()
+  ).results;
   const d = JSON.parse(String(r.snapshot)) as LearningDrill;
   const rows = (
     await db
@@ -450,6 +485,9 @@ async function sessionView(db: D1Database, r: Row) {
   return {
     id: r.id,
     assignmentId: r.assignment_id,
+    hintLevels: Object.fromEntries(
+      support.map((s) => [s.question_id, s.hint_level]),
+    ),
     title: d.title,
     courseName: d.courseName,
     subject: d.subject,
@@ -471,6 +509,7 @@ async function sessionView(db: D1Database, r: Row) {
             choices: q.choices,
             points: 1,
             category: q.category,
+            skillIds: q.skillIds || [],
             hint1: q.hint1,
             hint2: q.hint2,
           },

@@ -1,3 +1,4 @@
+import AIOptions from '../components/AIOptions';
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Storage, type UserData } from "../lib/storage";
@@ -64,6 +65,7 @@ export default function SettingsPage() {
           </button>
         </form>
       )}
+      <AIOptions />
       {user?.role === "admin" && (
         <p style={{ marginTop: 24 }}>
           <Link to="/admin/settings">管理画面のシステム設定へ →</Link>

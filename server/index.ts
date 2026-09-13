@@ -1,15 +1,19 @@
+import {sharing} from './sharing';
 import { Hono, type Context, type Next } from 'hono';
 import { sign, verify } from 'hono/jwt';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { hashPassword, verifyPassword } from './auth';
 import { platform } from './platform';
 import { drills } from './drills';
-import { normalizeAIEndpoint, aiFailureMessage } from './ai-settings';
+import { normalizeAIEndpoint } from './ai-settings';
+import {aiProvider} from './ai-provider';
+import {adaptive} from './adaptive';
 import { HTTPException } from 'hono/http-exception';
 
 type Bindings = {
   DB: D1Database;
   JWT_SECRET?: string;
+  AI_KEY_SECRET?: string;
   NODE_ENV?: string;
 };
 
@@ -150,27 +154,8 @@ app.use('/api/*', authMiddleware);
 app.route('/api/platform', drills);
 app.route('/api/platform', platform);
 
-// AI credentials stay on the Worker, never in the browser bundle or settings response.
-app.post('/api/ai/completion', async c => {
-  const settings = await c.env.DB.prepare('SELECT * FROM system_settings LIMIT 1').first<DBSettings>();
-  if (!settings?.api_key) return c.json({ error: '管理者がAI設定を登録してください' }, 400);
-  const body = await c.req.json();
-  if (!Array.isArray(body.messages) || body.messages.length > 100 || body.messages.some((m: {role:string;content:string}) => !m || !['system','user','assistant'].includes(m.role) || typeof m.content !== 'string' || m.content.length > 50000)) return c.json({ error: 'メッセージが不正です' }, 400);
-  try {
-    const response = await fetch(`${normalizeAIEndpoint(settings.endpoint)}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.api_key}` },
-      body: JSON.stringify({ model: settings.model, messages: body.messages }),
-      signal: AbortSignal.timeout(60000),
-    });
-    if (!response.ok) return c.json({ error: aiFailureMessage({ status: response.status }) }, 502);
-    if (!response.headers.get('content-type')?.includes('application/json')) return c.json({ error: 'AI接続先からJSON以外の応答が返りました。APIのベースURLを確認してください。' }, 502);
-    const result = await response.json() as { choices?: { message?: { content?: string } }[] };
-    const content = result?.choices?.[0]?.message?.content;
-    if (typeof content !== 'string' || !content.trim()) return c.json({ error: 'AIから有効な回答が返りませんでした。接続先がOpenAI互換APIのベースURLになっているか確認してください。' }, 502);
-    return c.json({ choices: [{ message: { content } }] });
-  } catch (error) { return c.json({ error: aiFailureMessage(error) }, 502); }
-});
+app.route('/api', aiProvider);
+app.route('/api/platform', adaptive);
 
 app.get('/api/settings', async (c) => {
   const dbSettings = await c.env.DB.prepare('SELECT * FROM system_settings LIMIT 1').first<DBSettings>();
@@ -291,70 +276,7 @@ app.get('/api/admin/users/:id/chat_logs', adminMiddleware, async (c) => {
   return c.json(formatted);
 });
 
-// Custom Drills
-app.get('/api/custom_drills', async (c) => {
-  const user = c.get('user');
-  const result = await c.env.DB.prepare('SELECT * FROM custom_drill_sets WHERE user_id = ? OR is_public = 1').bind(user.id).all();
-  const drills = result.results as {created_at:string;questions:string;is_public:number}[];
-  const formatted = drills.map(d => {
-    let parsedCreatedAt = Date.now();
-    if (d.created_at) {
-      const t = new Date(d.created_at).getTime();
-      if (!isNaN(t)) {
-        parsedCreatedAt = t;
-      } else if (!isNaN(Number(d.created_at))) {
-        parsedCreatedAt = Number(d.created_at);
-      }
-    }
-    return {
-      ...d,
-      createdAt: parsedCreatedAt,
-      questions: JSON.parse(d.questions),
-      is_public: d.is_public === 1
-    };
-  });
-  return c.json(formatted);
-});
-
-app.post('/api/custom_drills', async (c) => {
-  const user = c.get('user');
-  if (user.role !== 'admin') return c.json({ error: 'Forbidden: Admins only' }, 403);
-  const body = await c.req.json();
-  const { id, title, subject, topic, questions, is_public, createdAt } = body;
-  
-  const existing = await c.env.DB.prepare('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').bind(id).first<{id:string;user_id:string}>();
-  if (existing) {
-    if (existing.user_id !== user.id) return c.json({ error: 'Forbidden' }, 403);
-    await c.env.DB.prepare(
-      'UPDATE custom_drill_sets SET title = ?, subject = ?, topic = ?, questions = ?, is_public = ? WHERE id = ?'
-    ).bind(title, subject, topic, JSON.stringify(questions), is_public ? 1 : 0, id).run();
-  } else {
-    let createdAtIso = new Date().toISOString();
-    if (createdAt) {
-      const t = new Date(createdAt).getTime();
-      if (!isNaN(t)) {
-        createdAtIso = new Date(t).toISOString();
-      } else if (!isNaN(Number(createdAt))) {
-        createdAtIso = new Date(Number(createdAt)).toISOString();
-      }
-    }
-    await c.env.DB.prepare(
-      'INSERT INTO custom_drill_sets (id, user_id, title, subject, topic, questions, is_public, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(id, user.id, title, subject, topic, JSON.stringify(questions), is_public ? 1 : 0, createdAtIso).run();
-  }
-  return c.json({ message: 'Saved' });
-});
-
-app.delete('/api/custom_drills/:id', async (c) => {
-  const user = c.get('user');
-  if (user.role !== 'admin') return c.json({ error: 'Forbidden: Admins only' }, 403);
-  const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT id, user_id FROM custom_drill_sets WHERE id = ?').bind(id).first<{id:string;user_id:string}>();
-  if (existing && existing.user_id === user.id) {
-    await c.env.DB.prepare('DELETE FROM custom_drill_sets WHERE id = ?').bind(id).run();
-  }
-  return c.json({ message: 'Deleted' });
-});
+app.route('/api',sharing);
 
 app.post('/api/chat_logs', async (c) => {
   const user = c.get('user');

@@ -73,7 +73,7 @@ export default function DrillPage() {
       if (subjectParam === '国語') topic = "漢字の読み書きや四字熟語、ことわざ";
     }
 
-    const settings = await Storage.getSettings();
+    const settings = await Storage.getEffectiveAISettings();
 
     // ストックが3問になるまで1問ずつ補充
     while (true) {

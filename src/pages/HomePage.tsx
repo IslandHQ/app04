@@ -15,7 +15,7 @@ export default function HomePage() {
       try {
         const user = await Storage.getUserData();
         setUserData(user);
-        const settings = await Storage.getSettings();
+        const settings = await Storage.getEffectiveAISettings();
         setHasApiKey(!!settings.hasApiKey);
         const drills = await Storage.getCustomDrillSets();
         setCustomSets(drills);

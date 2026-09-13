@@ -300,7 +300,7 @@ test("bulk authoring, AI failure retry, group allocation, learning home and syst
   await admin.put(`/api/platform/admin/groups/${gid}`, {
     data: { name: groupName, description: "", memberIds: [person.id] },
   });
-  await page.route("**/api/settings", (r) =>
+  await page.route("**/api/{settings,ai/effective}", (r) =>
     r.fulfill({
       json: {
         endpoint: "https://example.test",

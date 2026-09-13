@@ -1,4 +1,5 @@
-import { useState } from "react";
+import type { Skill } from "../../../shared/adaptive";
+import { useState, useEffect } from "react";
 import { Dialog, Field } from "../../components/admin/Form";
 import { api, type Course } from "../../lib/platform";
 import {
@@ -22,6 +23,12 @@ export default function DrillEditor({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const [skills, setSkills] = useState<Skill[]>([]);
+  useEffect(() => {
+    api<Skill[]>("/admin/skills")
+      .then(setSkills)
+      .catch(() => {});
+  }, []);
   const [drill, setDrill] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -138,6 +145,23 @@ export default function DrillEditor({
             <h3>
               問題 {index + 1} / {drill.questions.length}
             </h3>
+            <Field label="理解度を測る技能">
+              <select
+                value={q.skillIds?.[0] || ""}
+                onChange={(e) =>
+                  patch({ skillIds: e.target.value ? [e.target.value] : [] })
+                }
+              >
+                <option value="">
+                  単元の技能を使用（未設定なら分析対象外）
+                </option>
+                {skills.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.subject} / {s.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
             <Field label="問題文">
               <textarea
                 required

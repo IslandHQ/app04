@@ -43,6 +43,8 @@ export interface DailyRecord {
 import type { DrillQuestion } from './ai';
 
 export interface CustomDrillSet {
+  user_id?: string;
+  groupIds?: string[];
   id: string;
   title: string;
   subject: string;
@@ -64,6 +66,7 @@ export interface UserData {
 }
 
 export const Storage = {
+  async getEffectiveAISettings(): Promise<AISettings> {const res=await fetch('/api/ai/effective');if(!res.ok)throw new Error('AI設定を取得できませんでした');return res.json();},
   async getSettings(): Promise<AISettings> {
     const res = await fetch('/api/settings');
     if (!res.ok) throw new Error('Failed to fetch settings');

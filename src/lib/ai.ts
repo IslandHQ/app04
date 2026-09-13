@@ -25,7 +25,7 @@ export async function generateDrills(
   seed?: number | string,
   customInstructions?: string
 ): Promise<DrillQuestion[]> {
-  const settings = await Storage.getSettings();
+  const settings = await Storage.getEffectiveAISettings();
   if (!settings.hasApiKey) return [];
 
 
@@ -101,7 +101,7 @@ export async function chatWithTutor(
   messages: ChatMessage[],
   currentQuestion: DrillQuestion
 ): Promise<string | null> {
-  const settings = await Storage.getSettings();
+  const settings = await Storage.getEffectiveAISettings();
   if (!settings.hasApiKey) return null;
 
 
@@ -134,7 +134,7 @@ export async function chatWithTutor(
     return response.choices[0]?.message?.content || null;
   } catch (error) {
     console.error('Chat error:', error);
-    return null;
+    throw error;
   }
 }
 
@@ -143,7 +143,7 @@ export async function generateUserSummary(
   records: DailyRecord[],
   chatLogs: ChatLog[]
 ): Promise<string> {
-  const settings = await Storage.getSettings();
+  const settings = await Storage.getEffectiveAISettings();
   if (!settings.hasApiKey) return 'AIの設定（APIキー等）が完了していません。設定画面からAPIキーを登録してください。';
 
 

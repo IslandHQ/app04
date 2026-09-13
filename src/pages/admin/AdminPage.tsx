@@ -1,3 +1,5 @@
+import SkillsPage from './SkillsPage';
+import UnderstandingPage from '../UnderstandingPage';
 import {
   cloneElement,
   useCallback,
@@ -60,6 +62,7 @@ const menu = [
   ["tests", "テスト", ClipboardList],
   ["assignments", "テストの配布", Send],
   ["results", "テスト結果", BarChart3],
+  ["skills", "技能・前提関係", BookOpen],
   ["settings", "システム設定", Settings],
 ] as const;
 const stateLabel: Record<string, string> = {
@@ -187,6 +190,7 @@ export default function AdminPage() {
   const [instructions, setInstructions] = useState("");
   const [importSets, setImportSets] = useState<CustomDrillSet[] | null>(null);
   const load = useCallback(async () => {
+    if(['drills','drill-assignments','settings','skills'].includes(section))return;
     const [users, groups, courses, tests, assignments, results] =
       await Promise.all([
         api<ManagedUser[]>("/admin/users"),
@@ -197,7 +201,7 @@ export default function AdminPage() {
         api<Attempt[]>("/admin/results"),
       ]);
     setData({ users, groups, courses, tests, assignments, results });
-  }, []);
+  }, [section]);
   // Populate the dashboard from the API after the authenticated role is available.
   useEffect(() => {
     if (user?.role === "admin") {
@@ -317,6 +321,7 @@ export default function AdminPage() {
           <>
             {section === 'drills' && <DrillLibraryPage/>}
             {section === 'drill-assignments' && <DrillAssignmentsPage/>}
+            {section === 'skills' && <SkillsPage/>}
             {section === 'settings' && <SystemSettingsPage/>}
             {section === "overview" && (
               <>
@@ -1041,7 +1046,7 @@ export default function AdminPage() {
                         このユーザーにテストを割り当てる
                       </button>
                     </div>
-                    <button type="button" className="admin-button primary" onClick={()=>{navigate('/admin/drill-assignments',{state:{userId:editingUser.id}});setEditingUser(null);}}>このユーザーに学習ドリルを配布</button><UserDrillActivity key={editingUser.id} userId={editingUser.id}/><h3>追加プロフィール</h3>
+                    <button type="button" className="admin-button primary" onClick={()=>{navigate('/admin/drill-assignments',{state:{userId:editingUser.id}});setEditingUser(null);}}>このユーザーに学習ドリルを配布</button><UnderstandingPage key={"understanding-"+editingUser.id} userId={editingUser.id}/><UserDrillActivity key={editingUser.id} userId={editingUser.id}/><h3>追加プロフィール</h3>
                     {profileRows.map(([k, v], i) => (
                       <div className="admin-actions" key={i}>
                         <input

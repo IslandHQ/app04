@@ -1,3 +1,4 @@
+import LearningSupport from "../components/LearningSupport";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/platform";
@@ -27,7 +28,10 @@ export default function LearningSessionPage() {
           ),
         );
         setSummary(s.completed);
-        setHint(0);
+        setHint(
+          s.hintLevels?.[s.questions.find((q) => !s.answers[q.id])?.id || ""] ||
+            0,
+        );
         setError("");
       })
       .catch((e) => {
@@ -99,6 +103,7 @@ export default function LearningSessionPage() {
               {session.mode === "mistakes" ? " · 間違えた問題の復習" : ""}
             </p>
           </header>
+          <LearningSupport sessionId={session.id} skillIds={q?.skillIds} />
           {summary ? (
             <section className="learning-result">
               <h2>おつかれさまでした！</h2>
@@ -131,7 +136,7 @@ export default function LearningSessionPage() {
               <details>
                 <summary>解説を振り返る</summary>
                 {session.questions.map((q) => (
-                  <div className="admin-question" key={q.id}>
+                  <div className="admin-question" key={`${session.id}:${q.id}`}>
                     <h3>{q.text}</h3>
                     <p>正解：{q.choices[q.answer!]}</p>
                     <p>{q.explanation}</p>
@@ -169,8 +174,23 @@ export default function LearningSessionPage() {
                   <section className="learning-hints">
                     <button
                       className="admin-button"
-                      disabled={hint >= 2}
-                      onClick={() => setHint(hint + 1)}
+                      disabled={busy || hint >= 2}
+                      onClick={async () => {
+                        setBusy(true);
+                        setError("");
+                        try {
+                          await api(
+                            "/learning-support/" + session.id + "/hint",
+                            "POST",
+                            { questionId: q.id, level: hint + 1 },
+                          );
+                          setHint(hint + 1);
+                        } catch (e) {
+                          setError((e as Error).message);
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
                     >
                       {hint ? "もう少しヒントを見る" : "ヒントを見る"}
                     </button>
@@ -213,6 +233,14 @@ export default function LearningSessionPage() {
                 )}
                 <AIChatModal
                   key={q.id}
+                  onUseHelp={async () => {
+                    if (!result)
+                      await api(
+                        "/learning-support/" + session.id + "/hint",
+                        "POST",
+                        { questionId: q.id, level: 2 },
+                      );
+                  }}
                   currentQuestion={{
                     subject: session.subject,
                     topic: session.unitName,

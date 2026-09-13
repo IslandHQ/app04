@@ -1,3 +1,4 @@
+import UnderstandingPage from './pages/UnderstandingPage';
 import { Routes, Route } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import Layout from './components/Layout';
@@ -30,6 +31,7 @@ function App() {
       <Route path="/admin/:section" element={<AdminPage />} />
       <Route path="/" element={<Layout />}>
         <Route index element={<HomePage />} />
+        <Route path="understanding" element={<UnderstandingPage />} />
         <Route path="practice" element={<PracticePage />} />
         <Route path="learn/:sessionId" element={<LearningSessionPage />} />
         <Route path="drill" element={<DrillPage />} />

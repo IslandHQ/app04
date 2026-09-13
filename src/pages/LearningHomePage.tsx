@@ -84,6 +84,8 @@ export default function LearningHomePage() {
           </button>
         </div>
       )}
+      <Link className="admin-button primary" to="/understanding">理解度を確認・基礎から学ぶ</Link>
+      <Link className="admin-button" to="/custom">問題を作成・共有する</Link>
       <section className="learning-hero">
         <div>
           <BookOpen size={26} />

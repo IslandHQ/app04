@@ -5,9 +5,10 @@ import { Storage, type ChatMessage } from '../lib/storage';
 
 interface AIChatModalProps {
   currentQuestion: DrillQuestion;
+  onUseHelp?: () => Promise<void>;
 }
 
-export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
+export default function AIChatModal({ currentQuestion, onUseHelp }: AIChatModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -34,26 +35,15 @@ export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
-
-    const userMsg: ChatMessage = { role: 'user', content: input.trim() };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    setInput('');
-    setIsLoading(true);
-
-    const reply = await chatWithTutor(newMessages, currentQuestion);
-    
-    if (reply) {
-      const updatedMessages = [...newMessages, { role: 'assistant' as const, content: reply }];
-      setMessages(updatedMessages);
-      
-      // バックグラウンドでチャット履歴を保存
-      Storage.saveChatLog(currentQuestion.subject, currentQuestion.topic, updatedMessages).catch(console.error);
-    } else {
-      setMessages([...newMessages, { role: 'assistant', content: 'エラーが発生しました。設定画面でAPIキーを確認してください。' }]);
-    }
-    
-    setIsLoading(false);
+    const newMessages: ChatMessage[] = [...messages, { role: 'user', content: input.trim() }];
+    setMessages(newMessages);setInput('');setIsLoading(true);
+    try {
+      await onUseHelp?.();
+      const reply = await chatWithTutor(newMessages, currentQuestion);
+      if(reply){const updatedMessages:ChatMessage[]=[...newMessages,{role:'assistant',content:reply}];setMessages(updatedMessages);Storage.saveChatLog(currentQuestion.subject,currentQuestion.topic,updatedMessages).catch(console.error);}
+      else setMessages([...newMessages,{role:'assistant',content:'AIを利用できません。個人設定で提供方法とキーを確認してください。'}]);
+    } catch(e){setMessages([...newMessages,{role:'assistant',content:e instanceof Error?e.message:'AIへの接続に失敗しました。'}]);}
+    finally{setIsLoading(false);}
   };
 
   return (
