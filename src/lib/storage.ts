@@ -25,6 +25,7 @@ export interface AdminUser {
 }
 
 export interface AISettings {
+  clearApiKey?: boolean;
   hasApiKey?: boolean;
   endpoint: string;
   apiKey: string;

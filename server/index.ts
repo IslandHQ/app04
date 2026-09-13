@@ -3,6 +3,7 @@ import { sign, verify } from 'hono/jwt';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { hashPassword, verifyPassword } from './auth';
 import { platform } from './platform';
+import { drills } from './drills';
 import OpenAI from 'openai';
 import { HTTPException } from 'hono/http-exception';
 
@@ -133,11 +134,20 @@ app.get('/api/auth/me', authMiddleware, async (c) => {
 
   user.topicStats = {};
   user.detailedStats = {};
+  const stats = await c.env.DB.prepare(`SELECT json_extract(s.snapshot,'$.subject') AS subject,json_extract(s.snapshot,'$.unitName') AS topic,
+    COUNT(*) AS total,SUM(a.correct) AS correct FROM drill_answers a JOIN drill_sessions s ON s.id=a.session_id
+    JOIN drill_assignments da ON da.id=s.assignment_id WHERE da.user_id=? GROUP BY subject,topic`).bind(payload.id).all<{subject:string;topic:string;total:number;correct:number}>();
+  for (const stat of stats.results) {
+    const old = user.topicStats[stat.subject] as {total:number;correct:number}|undefined;
+    user.topicStats[stat.subject] = {total:(old?.total||0)+stat.total,correct:(old?.correct||0)+stat.correct};
+    user.detailedStats[`${stat.subject}:${stat.topic}`] = {total:stat.total,correct:stat.correct};
+  }
   return c.json({ user });
 });
 
 // --- API Routes (Protected) ---
 app.use('/api/*', authMiddleware);
+app.route('/api/platform', drills);
 app.route('/api/platform', platform);
 
 // AI credentials stay on the Worker, never in the browser bundle or settings response.
@@ -246,7 +256,7 @@ app.post('/api/study_result', async (c) => {
 // Daily Records
 app.get('/api/daily_records', async (c) => {
   const user = c.get('user');
-  const result = await c.env.DB.prepare('SELECT * FROM daily_records WHERE user_id = ? ORDER BY date ASC').bind(user.id).all();
+  const result = await c.env.DB.prepare('SELECT * FROM study_daily_totals WHERE user_id = ? ORDER BY date ASC').bind(user.id).all();
   return c.json(result.results);
 });
 
@@ -258,7 +268,7 @@ app.get('/api/admin/users', adminMiddleware, async (c) => {
 
 app.get('/api/admin/users/:id/records', adminMiddleware, async (c) => {
   const userId = c.req.param('id');
-  const result = await c.env.DB.prepare('SELECT * FROM daily_records WHERE user_id = ? ORDER BY date ASC').bind(userId).all();
+  const result = await c.env.DB.prepare('SELECT * FROM study_daily_totals WHERE user_id = ? ORDER BY date ASC').bind(userId).all();
   return c.json(result.results);
 });
 

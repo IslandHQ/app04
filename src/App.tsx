@@ -1,7 +1,9 @@
 import { Routes, Route } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import Layout from './components/Layout';
-import HomePage from './pages/HomePage';
+import HomePage from './pages/LearningHomePage';
+import PracticePage from './pages/HomePage';
+import LearningSessionPage from './pages/LearningSessionPage';
 import DrillPage from './pages/DrillPage';
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 import SettingsPage from './pages/SettingsPage';
@@ -28,6 +30,8 @@ function App() {
       <Route path="/admin/:section" element={<AdminPage />} />
       <Route path="/" element={<Layout />}>
         <Route index element={<HomePage />} />
+        <Route path="practice" element={<PracticePage />} />
+        <Route path="learn/:sessionId" element={<LearningSessionPage />} />
         <Route path="drill" element={<DrillPage />} />
         <Route path="custom" element={<CustomDrillPage />} />
         <Route path="dashboard" element={<DashboardPage />} />

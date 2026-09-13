@@ -43,15 +43,24 @@ import { generateDrills } from "../../lib/ai";
 import "../../admin.css";
 import UserActivity from "./UserActivity";
 import ResultAnalysis from "./ResultAnalysis";
+import DrillOverview from './DrillOverview';
+import UserDrillActivity from './UserDrillActivity';
+import DrillLibraryPage from './DrillLibraryPage';
+import DrillAssignmentsPage from './DrillAssignmentsPage';
+import SystemSettingsPage from './SystemSettingsPage';
+import '../../drills.css';
 
 const menu = [
   ["overview", "概要", LayoutDashboard],
   ["users", "ユーザー", Users],
   ["groups", "グループ", Layers],
   ["courses", "学習コース", BookOpen],
+  ["drills", "ドリル管理", BookOpen],
+  ["drill-assignments", "ドリルの配布", Send],
   ["tests", "テスト", ClipboardList],
-  ["assignments", "割り当て", Send],
-  ["results", "結果", BarChart3],
+  ["assignments", "テストの配布", Send],
+  ["results", "テスト結果", BarChart3],
+  ["settings", "システム設定", Settings],
 ] as const;
 const stateLabel: Record<string, string> = {
   draft: "下書き",
@@ -268,10 +277,6 @@ export default function AdminPage() {
           ))}
         </nav>
         <div className="admin-sidebar-bottom">
-          <Link to="/settings">
-            <Settings size={18} />
-            システム設定
-          </Link>
           <Link to="/">
             <ArrowLeft size={18} />
             学習画面へ
@@ -285,7 +290,7 @@ export default function AdminPage() {
             <p className="admin-eyebrow">LEARNING MANAGEMENT</p>
             <h1>{title}</h1>
             <p className="admin-muted">
-              学校の学習から資格試験・研修まで、学ぶ人とテストを管理します。
+              日常のドリル学習と確認テストを、コース・グループで管理します。
             </p>
           </div>
           <button
@@ -310,35 +315,12 @@ export default function AdminPage() {
           <Empty>読み込み中...</Empty>
         ) : (
           <>
+            {section === 'drills' && <DrillLibraryPage/>}
+            {section === 'drill-assignments' && <DrillAssignmentsPage/>}
+            {section === 'settings' && <SystemSettingsPage/>}
             {section === "overview" && (
               <>
-                <div className="admin-metrics">
-                  {[
-                    [
-                      "利用中のユーザー",
-                      data.users.filter((u) => u.status === "active").length,
-                    ],
-                    [
-                      "公開中のテスト",
-                      data.tests.filter((t) => t.status === "published").length,
-                    ],
-                    [
-                      "提出済み",
-                      data.assignments.filter((a) => a.status === "submitted")
-                        .length,
-                    ],
-                    [
-                      "期限超過",
-                      data.assignments.filter((a) => a.status === "overdue")
-                        .length,
-                    ],
-                  ].map(([label, n]) => (
-                    <div className="admin-card" key={label}>
-                      <span>{label}</span>
-                      <strong>{n}</strong>
-                    </div>
-                  ))}
-                </div>
+                <DrillOverview userCount={data.users.filter(u=>u.status==='active').length}/>
                 <section className="admin-card">
                   <h2>はじめの3ステップ</h2>
                   <div className="admin-steps">
@@ -346,18 +328,18 @@ export default function AdminPage() {
                       <b>01</b>ユーザーを登録する
                       <span>個人やグループで対象者を整理</span>
                     </Link>
-                    <Link to="/admin/tests">
-                      <b>02</b>テストを用意する
-                      <span>問題を作成し、確認して公開</span>
+                    <Link to="/admin/drills">
+                      <b>02</b>ドリルを用意する
+                      <span>科目・単元ごとにまとめて作成</span>
                     </Link>
-                    <Link to="/admin/assignments">
-                      <b>03</b>テストを割り当てる
-                      <span>期限と受験回数を指定して配布</span>
+                    <Link to="/admin/drill-assignments">
+                      <b>03</b>学習ドリルを配布する
+                      <span>コース・グループでまとめて配布</span>
                     </Link>
                   </div>
                 </section>
                 <section className="admin-card">
-                  <h2>対応が必要な割り当て</h2>
+                  <h2>対応が必要なテストの配布</h2>
                   {data.assignments.filter((a) => a.status === "overdue")
                     .length ? (
                     data.assignments
@@ -1059,7 +1041,7 @@ export default function AdminPage() {
                         このユーザーにテストを割り当てる
                       </button>
                     </div>
-                    <h3>追加プロフィール</h3>
+                    <button type="button" className="admin-button primary" onClick={()=>{navigate('/admin/drill-assignments',{state:{userId:editingUser.id}});setEditingUser(null);}}>このユーザーに学習ドリルを配布</button><UserDrillActivity key={editingUser.id} userId={editingUser.id}/><h3>追加プロフィール</h3>
                     {profileRows.map(([k, v], i) => (
                       <div className="admin-actions" key={i}>
                         <input

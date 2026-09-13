@@ -26,7 +26,7 @@ export default function AIChatModal({ currentQuestion }: AIChatModalProps) {
 
   // If question changes, reset chat
   const [prevQuestion, setPrevQuestion] = useState(currentQuestion);
-  if (currentQuestion !== prevQuestion) {
+  if (currentQuestion.questionText !== prevQuestion.questionText || currentQuestion.subject !== prevQuestion.subject || currentQuestion.topic !== prevQuestion.topic) {
     setMessages([]);
     setIsOpen(false);
     setPrevQuestion(currentQuestion);
