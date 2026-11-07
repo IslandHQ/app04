@@ -19,7 +19,7 @@ export default function AuthPage() {
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
       const body = isLogin 
         ? { email, password } 
-        : { email, password, name, grade: '中1' };
+        : { email, password, name, grade: '' };
         
       const res = await fetch(endpoint, {
         method: 'POST',

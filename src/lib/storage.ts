@@ -25,6 +25,8 @@ export interface AdminUser {
 }
 
 export interface AISettings {
+  clearApiKey?: boolean;
+  hasApiKey?: boolean;
   endpoint: string;
   apiKey: string;
   model: string;
@@ -41,6 +43,8 @@ export interface DailyRecord {
 import type { DrillQuestion } from './ai';
 
 export interface CustomDrillSet {
+  user_id?: string;
+  groupIds?: string[];
   id: string;
   title: string;
   subject: string;
@@ -62,6 +66,7 @@ export interface UserData {
 }
 
 export const Storage = {
+  async getEffectiveAISettings(): Promise<AISettings> {const res=await fetch('/api/ai/effective');if(!res.ok)throw new Error('AI設定を取得できませんでした');return res.json();},
   async getSettings(): Promise<AISettings> {
     const res = await fetch('/api/settings');
     if (!res.ok) throw new Error('Failed to fetch settings');
@@ -69,11 +74,12 @@ export const Storage = {
   },
   
   async saveSettings(settings: AISettings): Promise<void> {
-    await fetch('/api/settings', {
+    const res = await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings)
     });
+    if (!res.ok) throw new Error('保存に失敗しました');
   },
   
   async getUserData(): Promise<UserData> {
@@ -82,7 +88,7 @@ export const Storage = {
     const data = await res.json();
     const user = data.user;
     return {
-      grade: user.grade || '中1',
+      grade: user.grade || '',
       name: user.name,
       streak: user.streak || 0,
       lastStudyDate: user.last_study_date || '',
@@ -94,11 +100,12 @@ export const Storage = {
   },
   
   async saveUserData(userData: UserData): Promise<void> {
-    await fetch('/api/user', {
+    const res = await fetch('/api/user', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: userData.name, grade: userData.grade })
     });
+    if (!res.ok) throw new Error('保存に失敗しました');
   },
   
   async getDailyRecords(): Promise<DailyRecord[]> {
@@ -120,15 +127,17 @@ export const Storage = {
   },
   
   async saveCustomDrillSet(drillSet: CustomDrillSet): Promise<void> {
-    await fetch('/api/custom_drills', {
+    const res = await fetch('/api/custom_drills', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(drillSet)
     });
+    if (!res.ok) throw new Error('保存に失敗しました');
   },
   
   async deleteCustomDrillSet(id: string): Promise<void> {
-    await fetch(`/api/custom_drills/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/custom_drills/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('削除に失敗しました');
   },
   
   async addStudyResult(subject: string, topic: string, minutes: number, isCorrect: boolean): Promise<{ gainedExp: number, leveledUp: boolean }> {
@@ -142,11 +151,12 @@ export const Storage = {
   },
   
   async saveChatLog(subject: string, topic: string, chatHistory: ChatMessage[]): Promise<void> {
-    await fetch('/api/chat_logs', {
+    const res = await fetch('/api/chat_logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subject, topic, chatHistory })
     });
+    if (!res.ok) throw new Error('保存に失敗しました');
   },
   
   async getAdminUsers(): Promise<AdminUser[]> {

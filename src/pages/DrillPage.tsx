@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { generateDrills, type DrillQuestion } from '../lib/ai';
 import { Storage } from '../lib/storage';
 import AIChatModal from '../components/AIChatModal';
+import { api, type Course } from '../lib/platform';
 
 export default function DrillPage() {
   const [questionQueue, setQuestionQueue] = useState<DrillQuestion[]>([]);
@@ -31,6 +32,7 @@ export default function DrillPage() {
   const setIdParam = searchParams.get('setId');
   const subjectParam = searchParams.get('subject') || '数学';
   const topicParam = searchParams.get('topic');
+  const courseId = searchParams.get('courseId');
 
   const fetchQuestions = async () => {
     if (isFetchingRef.current) return;
@@ -71,7 +73,7 @@ export default function DrillPage() {
       if (subjectParam === '国語') topic = "漢字の読み書きや四字熟語、ことわざ";
     }
 
-    const settings = await Storage.getSettings();
+    const settings = await Storage.getEffectiveAISettings();
 
     // ストックが3問になるまで1問ずつ補充
     while (true) {
@@ -82,12 +84,14 @@ export default function DrillPage() {
       console.log(`[AI生成] ${targetIndex}問目の補充を開始... (現在のストック: ${currentStock}/3)`);
 
       try {
+        const course=courseId ? (await api<Course[]>('/courses')).find(c=>c.id===courseId) : undefined;
         const qs = await generateDrills(
           subjectParam,
           topic,
           1,
           settings.duplicatePreventionMode === 'history' ? historyRef.current : [],
-          Math.random().toString(36).substring(7)
+          Math.random().toString(36).substring(7),
+          course ? `対象者: ${course.audience}。学習範囲: ${course.description}。このコースの対象者・範囲を優先してください。` : undefined
         );
 
         if (qs.length > 0) {
@@ -103,13 +107,13 @@ export default function DrillPage() {
           if (!question && queueRef.current.length === 0) {
             const emptyQuestion: DrillQuestion = {
               subject: subjectParam,
-              topic: settings.apiKey ? "生成失敗" : "API未設定",
-              questionText: settings.apiKey
+              topic: settings.hasApiKey ? "生成失敗" : "API未設定",
+              questionText: settings.hasApiKey
                 ? "問題の生成に失敗しました。もう一度試すか、設定を確認してください。"
                 : "APIキーが設定されていません。設定画面でキーを登録してください。",
               choices: ["設定画面へ", "やり直す", "ヘルプ", "閉じる"],
               correctAnswer: "",
-              explanation: settings.apiKey ? "AIからのレスポンスが空でした。" : "APIキーを設定すると問題が自動生成されます。",
+              explanation: settings.hasApiKey ? "AIからのレスポンスが空でした。" : "APIキーを設定すると問題が自動生成されます。",
               hint1: "設定画面を確認してください。",
               hint2: "APIキーが必要です。"
             };

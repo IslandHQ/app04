@@ -1,5 +1,5 @@
-import { Outlet, NavLink } from 'react-router-dom';
-import { Home, BookOpen, LineChart, Settings, PenTool } from 'lucide-react';
+import { Outlet, NavLink, Link } from 'react-router-dom';
+import { Home, ClipboardList, LineChart, Settings } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Layout() {
@@ -7,24 +7,19 @@ export default function Layout() {
   return (
     <div className="app-container">
       <div className="page-content">
+        <div style={{display:'flex',justifyContent:'space-between',gap:12,marginBottom:18,fontSize:13}}><Link to="/">学習ホーム</Link>{user?.role==='admin'&&<Link to="/admin/overview">管理画面 →</Link>}</div>
         <Outlet />
       </div>
       
       <nav className="bottom-nav">
         <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} end>
           <Home size={24} />
-          <span>ホーム</span>
+          <span>学習</span>
         </NavLink>
-        <NavLink to="/drill" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-          <BookOpen size={24} />
-          <span>ドリル</span>
+        <NavLink to="/tests" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <ClipboardList size={24} />
+          <span>テスト</span>
         </NavLink>
-        {user?.role === 'admin' && (
-          <NavLink to="/custom" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <PenTool size={24} />
-            <span>作る</span>
-          </NavLink>
-        )}
         <NavLink to="/dashboard" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <LineChart size={24} />
           <span>データ</span>

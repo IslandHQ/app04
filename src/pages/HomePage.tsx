@@ -2,21 +2,24 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Flame, Settings, BookOpen, Globe, Beaker, Library, RefreshCw } from 'lucide-react';
 import { Storage, type UserData, type CustomDrillSet } from '../lib/storage';
+import { api, type Course } from '../lib/platform';
 
 export default function HomePage() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [customSets, setCustomSets] = useState<CustomDrillSet[]>([]);
+  const [courses,setCourses]=useState<Course[]>([]);
 
   useEffect(() => {
     async function load() {
       try {
         const user = await Storage.getUserData();
         setUserData(user);
-        const settings = await Storage.getSettings();
-        setHasApiKey(!!settings.apiKey);
+        const settings = await Storage.getEffectiveAISettings();
+        setHasApiKey(!!settings.hasApiKey);
         const drills = await Storage.getCustomDrillSets();
         setCustomSets(drills);
+        setCourses(await api<Course[]>('/courses'));
       } catch (err) {
         console.error(err);
       }
@@ -130,6 +133,7 @@ export default function HomePage() {
         </div>
       )}
 
+      {courses.length>0&&<section style={{marginBottom:24}}><h3>学習コースで練習</h3>{courses.map(c=><Link className="glass-panel" style={{display:'block',padding:18,marginTop:12,textDecoration:'none',color:'inherit'}} key={c.id} to={`/drill?subject=${encodeURIComponent(c.name)}&topic=${encodeURIComponent(c.description||'基礎の確認')}&courseId=${c.id}`}><b>{c.name}</b><p style={{fontSize:13,marginTop:6}}>{c.audience||c.description}</p></Link>)}</section>}
       <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>教科を選ぶ</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
         {subjects.map(subject => (

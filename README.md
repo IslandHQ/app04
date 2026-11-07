@@ -1,73 +1,152 @@
-# React + TypeScript + Vite
+# 学習・テスト管理アプリ
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React / TypeScript の学習画面と、Hono / Cloudflare Workers / D1 のAPIで構成されています。
+学校・資格試験・研修で共通利用できる管理画面を備えています。
 
-Currently, two official plugins are available:
+## ローカル起動
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Node.js 22.13以降（推奨24以降）を用意してください。Bunは不要です。
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+npm ci
+npm run db:migrate:local
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+通常は http://localhost:8787 で起動します。初回登録したユーザーが管理者になります。
+管理者でログインし、学習画面上部の「管理画面」から `/admin/overview` を開いてください。
+`local.db` は以前の調査用ファイルです。現在のローカル実行は `.wrangler/state` 内のD1を使用します。
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 管理画面
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| URL | 機能 |
+| --- | --- |
+| `/admin/overview` | 利用者数、公開中テスト、提出・期限超過状況 |
+| `/admin/users` | 登録、検索、権限・利用状態・任意属性の編集、学習履歴・答案・会話履歴 |
+| `/admin/groups` | 学級・部署・受験者グループの作成とメンバー編集 |
+| `/admin/courses` | コース名、対象者、出題範囲の設定 |
+| `/admin/tests` | 4択テストの作成、AI生成、既存問題集の取り込み、編集、公開、複製、終了 |
+| `/admin/assignments` | 個人・グループへの配布、提出期限、受験回数の変更 |
+| `/admin/results` | 得点・合否・答案、設問別集計、CSV出力 |
+| `/settings` | 個人設定・管理者のAI接続設定 |
+
+ユーザー詳細から、そのユーザーを選択した配布画面へ移動できます。
+グループ所属とコースは別の概念です。ユーザーが学ぶテストは割り当てで指定します。
+コースはテストを整理する分類であり、コース所属によるアクセス制限は設けていません。
+
+## テストの運用
+
+1. 必要に応じてコースとグループを登録します。
+2. テストを下書き作成し、問題・正解・配点・解説を確認して公開します。
+3. 個人またはグループに割り当てます。
+4. 学習者は `/tests` で受験します。選択した回答を自動保存し、再読み込みして再開できます。
+5. 提出時にサーバーが採点し、管理者は結果画面で確認できます。
+
+- 公開後の問題は変更できません。編集する場合は複製して新しいテストを作ります。
+- 配布時に問題・配点・合格基準・制限時間をスナップショット保存します。
+- 同じテストを同じユーザーに再配布しても重複登録しません。再受験は受験回数を増やして許可します。
+- グループ配布は配布時点のメンバーに適用します。追加メンバーには再度配布してください。停止ユーザーを含む配布はエラーになります。
+- 試験モードは提出前に正解・解説を返しません。練習モードは解説を開きながら回答できます。
+- 制限時間は0〜480分（0で無制限）。開始時から経過し、中断中も止まりません。時間切れ後のアクセス時に保存済み回答で提出を確定します。ブラウザーのタイマーも結果を取得します。
+- 通信断中の未保存回答は、時間切れ後には受け付けません。画面の保存状態を確認してください。
+- 提出期限超過またはテスト終了後は手動提出できません。期限超過は管理者が期限を延長できます。終了したテストは必要なら複製します。
+- 日別ドリル記録とテスト結果は別管理です。テストでは従来ドリルの経験値を加算しません。
+
+## 既存環境の更新
+
+`migrations/` は既存データを残す追加型の更新です。
+`0000` は既存テーブルを存在しない場合だけ作成し、`0001`・`0002` は管理機能、`0003` は日常学習ドリルのテーブルと集計ビューを追加します。
+既存の `schema.sql` はテーブル削除を含む旧初期化用ファイルです。更新には使用しないでください。
+
+本番適用はDBのバックアップを確認した上で、管理者が明示的に行ってください。
+
+```sh
+npx wrangler secret put JWT_SECRET
+npm run db:migrate:prod
+npm run deploy
 ```
+
+`JWT_SECRET` には十分な長さのランダム値を登録してください。ローカルホスト以外では未設定時に認証を拒否します。
+既存ユーザーは利用中として引き継ぎます。停止・権限変更はAPI呼び出しごとにDBから確認します。
+自分自身の停止・降格と、最後の有効な管理者の停止・降格は拒否します。
+
+AIキーは管理者が設定画面で登録し、サーバーだけが使用します。キー入力を空欄にして保存すると既存キーを維持します。
+AIの実通信には利用するプロバイダーのキーが必要です。公開するテストはAI出力を管理者が確認してください。
+旧 `test_api.ts` のキー直接記載は環境変数方式に変更しています。以前のキーが有効な場合はプロバイダー側で失効・再発行してください。
+
+## 検証
+
+```sh
+npm run build
+npm run typecheck:server
+npm run lint
+npx playwright install chromium
+npm test
+```
+
+テストは `127.0.0.1:8790` に専用サーバーを起動し、`.wrangler-test/` に独立したDBを作成します。
+本番DBや通常のローカルDBには接続しません。テスト用データは実行ごとに追加されます。
+権限・採点・再受験・キー非公開、既存データの保持、時間切れ、管理者と学習者の画面操作、従来の苦手分析表示を確認します。
+AIプロバイダーへの有料リクエストはテストに含めません。
+
+## コード構成
+
+- `src/pages/admin/`：管理画面、ユーザーの活動履歴、設問別分析
+- `src/pages/TestsPage.tsx`：学習者の受験・結果画面
+- `src/lib/platform.ts`：管理・受験APIクライアント、CSV出力
+- `shared/platform.ts`：フロントとAPIのデータ型
+- `server/platform.ts`：管理・配布・受験・採点API
+- `server/index.ts`：認証、従来のドリルAPI、サーバー側AI通信
+- `migrations/`：DBの追加変更
+
+初版は4択・自動採点に対応します。記述式、人手採点、組織ごとの完全なデータ分離、管理操作の監査ログは含めていません。
+新しい学習ドリルの科目・単元別統計は回答記録から集計します。旧ランダムドリルの過去記録には単元別の内訳がないため、日別集計のみを引き継ぎます。
+
+
+## 日常学習ドリル
+
+ホーム（`/`）は配布されたドリルを解く画面です。テストは `/tests`、従来の自由練習は `/practice` に分けています。
+システム設定（AI接続・キー・モデル・重複防止）は管理者専用の `/admin/settings` に移動しました。個人設定には名前・学年・ログアウトを残しています。
+
+1. `/admin/drills` でコースを追加し、科目と単元をカンマ区切りまたは表計算の2列から一括登録します。科目名は自由入力で、資格試験にも使えます。
+2. 単元を選び、1回に最大100ドリルの下書きを作成します。手入力、個別AI作成、空の下書きへの一括AI作成に対応します。AI生成はページを開いている間だけ順番に実行し、途中停止・失敗分の再試行ができます。
+3. 内容・正解・ヒントを確認して一括公開します。公開後の問題変更は複製した下書きで行います。単元の分類名は単元フィルターで選択して編集できます。
+4. `/admin/drill-assignments` でコース・科目・単元から教材を選び、グループまたは個人へ一括配布します。配布対象の人数と総件数を確認できます。1回最大100教材・合計1000割り当てです。
+5. 学習者は即時採点・2段階のヒント・解説で学習します。中断再開、全問の繰り返し、直近の完了回で間違えた問題だけの復習ができます。回答はサーバーに保存し、経験値と日別・単元別の記録へ反映します。
+
+- 配布時の問題・分類を保存するため、教材の整理やアーカイブで配布済みの学習内容は変わりません。
+- 同じユーザーへの同じ教材の配布は重複しません。取り下げ後の再配布は履歴を維持して再開します。
+- グループは配布時点の利用中メンバーが対象です。後から加入した人には再配布します。自動で同期する機能は含みません。
+- 目標日は学習の目安で、超過後も解けます。受験期限・回数制限のあるテストとは独立しています。
+- 最高正解数と完了回数は全問モードを基準にし、間違い復習の回答も日別・単元別の学習記録に含めます。
+- 旧問題集は元のデータを残して「既存のドリル」コースの下書きにコピーします。内容を確認・公開してから配布してください。
+- 主な追加コード：`server/drills.ts`、`shared/drills.ts`、`src/pages/LearningHomePage.tsx`、`src/pages/LearningSessionPage.tsx`、`src/pages/admin/Drill*`。
+
+
+## AIの提供方法と個人API（0004・0005）
+
+`/admin/settings` の「AIの提供方法・利用上限」で、共通API・個人APIのみ・併用・AIなしを選択します。初期値は共通API、1人30回/日、全体1000回/日、1人2件同時、1回8000出力トークンです。提供方法の変更は次のリクエストから適用します。
+
+- 個人の選択とキーは `/settings` で管理します。AI生成・チューター・学習要約は同じ選択を利用します。エラーや上限超過で別のAPIに自動切り替えしません。
+- 個人キーはAES-GCMで暗号化保存し、読み出しAPIは登録有無だけを返します。本番で個人APIを有効にする前に `npx wrangler secret put AI_KEY_SECRET` で十分な長さのランダム値を設定してください。暗号化用の値は維持してバックアップします。変更すると保存済み個人キーを復号できず、再登録が必要です。ローカル開発のみ専用の固定値を使います。運営者の従来の共通キーは既存のsystem_settings方式を維持します。
+- HTTPSのOpenAI互換Chat Completions APIに対応します。個人からのHTTP・IPアドレス・localhost等の指定、資格情報付きURL、リダイレクトは受け付けません。ローカルLLM接続は未対応です。
+- 共通枠はUTC 0時（日本時間9時）に更新。送信失敗も回数に含めます。DBで送信前に枠を原子的に確保し、同時実行を制限します。タイムアウトは60秒、異常終了した実行枠は120秒で失効します。
+- 利用料そのものの課金管理は含みません。プロバイダーが返すトークン数を記録しますが、利用料はモデル・入力長・出力長によって異なります。利用回数と出力上限は費用上限そのものではありません。
+
+## 理解度の推定と基礎への戻り道
+
+`/understanding` に技能ごとの推定と次のおすすめを表示します。学習中の「もっとやさしく・例で説明」から前提の基礎を順にたどり、「基礎問題を解く」で通常の学習に移動できます。元のセッションは保持され、「元の問題に戻る」で再開できます。
+
+管理者は `/admin/skills` で技能・やさしい説明・具体例・前提技能・関連単元を管理します。循環する前提関係はAPIとDBの両方で拒否します。単元に技能を設定した後に保存するドリルの問題へ技能が自動で付与されます。設問ごとの指定はドリル編集画面で変更できます。配布済みのスナップショットは書き換えません。既存の公開ドリルは複製・分類・保存・公開して新しく配布してください。
+
+- 初期教材は「基礎から学ぶ数学」5技能・各5問です。たし算、ひき算、負の数、正負の計算、一次方程式の順に戻れます。全利用者がAIなしで利用できます。教科全体を網羅したカリキュラムではなく、運営者が技能・前提・教材を追加して拡張するための出発点です。
+- 推定対象は技能付きの学習ドリル回答です。旧自由練習・共有問題集・確認テストの記録は、今回の技能推定には混在させません。
+- 同じ問題文は1種類として扱い、初回を重み1、最後の再回答を0.2として最大2観測だけ使います。独力正解は1、ヒント1は0.65、ヒント2・AIチューター利用は0.35として加点し、事前値1/2で平滑化します。異なる問題が3問未満は「判断材料不足」、3問以上で推定75%以上は「できていそう」、それ以外は「理解を確認中」です。
+- これは説明可能な初期の推定規則です。標準化された学力検査・IRT・診断モデルではありません。問題難易度の校正、忘却の自動推定、誤答選択肢からの誤概念推定は未実装です。最終回答日と根拠件数を表示します。
+- 管理者もユーザー詳細から同じ理解度を確認できます。
+
+## 個人の教材作成・共有
+
+`/custom` は一般ユーザーもAIまたは手入力で教材を作れます。自分のみ、所属グループ、全利用者への公開を選択します。「全体公開」はこのインストール内のログイン利用者への共有で、インターネットへの匿名公開ではありません。共有された教材の利用者は元の教材を編集・削除できません。共有権限は閲覧時のグループ所属を確認します。生成に使ったキーは教材に含めません。
+
+この更新ではAI選択・技能分析・基礎への移動・共有を中心に実装しています。レビューで挙げた旧自由練習の自己申告記録の統一、日別記録のタイムゾーン統一、サーバーでの生成ジョブ継続、コース受講の自動同期、全一覧のサーバーページ分割は今後の課題です。教材一覧のDB読込から問題本文を除外し、管理画面の独立したページで不要な全テスト履歴を読まない改善は実施しています。

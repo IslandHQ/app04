@@ -1,0 +1,379 @@
+.drill-guide {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  color: #526782;
+}
+.drill-guide b,
+.drill-step {
+  display: inline-grid;
+  place-items: center;
+  background: #e7effc;
+  color: #315eac;
+  border-radius: 50%;
+  width: 27px;
+  height: 27px;
+  margin-right: 8px;
+  font-size: 13px;
+}
+.drill-filters {
+  display: flex;
+  align-items: end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.drill-filters .admin-field {
+  flex: 1;
+  min-width: 140px;
+  margin: 0;
+}
+.drill-filters select {
+  width: 100%;
+}
+.drill-bulk-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: #e8f0fc;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 18px;
+}
+.drill-bulk-bar .admin-field {
+  margin: 0;
+}
+.drill-library .admin-actions {
+  margin: 0;
+}
+.drill-library progress {
+  display: block;
+  width: 100%;
+  margin: 12px 0;
+  accent-color: #315eac;
+}
+.drill-dialog {
+  width: min(920px, calc(100vw - 32px));
+  max-width: 920px;
+  max-height: 90vh;
+  overflow: auto;
+  margin: auto;
+  border: 0;
+  color: #24324a;
+}
+.drill-dialog::backdrop {
+  background: #14223899;
+}
+.drill-question-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 15px 0;
+}
+.drill-summary {
+  padding: 18px;
+  background: #f0f5fc;
+  border-radius: 8px;
+  margin: 16px 0;
+  font-size: 16px;
+}
+.drill-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+}
+.settings-panel {
+  max-width: 800px;
+}
+.drill-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.drill-material-list {
+  max-height: 380px;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.drill-material {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.drill-material small {
+  display: block;
+  color: #63728a;
+  margin-top: 5px;
+}
+.admin-sidebar {
+  overflow-y: auto;
+}
+.drill-dialog .admin-alert {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.learning-home header,
+.learning-session header {
+  margin: 18px 0 24px;
+}
+.learning-home h1,
+.learning-session h1 {
+  font-size: 25px;
+  margin: 8px 0;
+}
+.learning-hero {
+  background: linear-gradient(120deg, #244d89, #3f78bc);
+  padding: 24px;
+  border-radius: 18px;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.learning-hero h2 {
+  color: white;
+  font-size: 21px;
+  margin: 8px 0;
+}
+.learning-streak {
+  font-size: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  align-items: center;
+  gap: 5px;
+  max-width: 130px;
+}
+.learning-streak small {
+  display: block;
+  flex-basis: 100%;
+  margin-top: 10px;
+}
+.learning-hero progress {
+  width: 100%;
+  accent-color: #b6d9ff;
+  height: 9px;
+}
+.learning-filters {
+  display: flex;
+  gap: 12px;
+  margin: 24px 0 14px;
+}
+.learning-filters label {
+  flex: 1;
+  font-size: 12px;
+  color: #607087;
+}
+.learning-filters select {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  padding: 10px 5px;
+  border: 1px solid #d2ddeb;
+  border-radius: 7px;
+  background: white;
+  color: #24324a;
+}
+.learning-subjects {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.learning-subjects button {
+  border: 1px solid #d2ddeb;
+  background: white;
+  padding: 8px 12px;
+  border-radius: 20px;
+  color: #506178;
+  cursor: pointer;
+}
+.learning-subjects .active {
+  background: #315eac;
+  color: white;
+}
+.learning-unit h2 {
+  font-size: 18px;
+  margin-top: 22px;
+}
+.learning-drill-card {
+  background: white;
+  padding: 18px;
+  border: 1px solid #e0e7f0;
+  border-radius: 12px;
+  margin: 12px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.learning-drill-card h3 {
+  font-size: 16px;
+  margin: 9px 0;
+}
+.learning-drill-card p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #63728a;
+}
+.learning-drill-card progress {
+  width: 100%;
+  accent-color: #315eac;
+}
+.learning-secondary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 28px;
+  font-size: 14px;
+}
+.learning-weak {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+  background: #fff5df;
+  border-radius: 10px;
+  margin: 20px 0;
+  text-decoration: none;
+  color: #765c22;
+}
+.learning-weak small {
+  display: block;
+  margin-top: 5px;
+}
+.learning-session a {
+  color: #315eac;
+  text-decoration: none;
+}
+.learning-progress {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #63728a;
+}
+.learning-progress progress {
+  width: 100%;
+  accent-color: #315eac;
+}
+.learning-question {
+  margin: 20px 0;
+}
+.learning-question h2 {
+  font-size: 21px;
+  white-space: pre-wrap;
+  line-height: 1.7;
+  background: white;
+  padding: 24px;
+  border-radius: 14px;
+}
+.learning-question .test-choice {
+  width: 100%;
+  background: white;
+  font: inherit;
+  line-height: 1.6;
+  text-align: left;
+  display: block;
+}
+.learning-question .test-choice.selected {
+  background: #e9f2ff;
+  border-color: #315eac;
+}
+.learning-hints p {
+  background: #fff5df;
+  padding: 18px;
+  margin-top: 12px;
+  border-radius: 10px;
+  white-space: pre-wrap;
+}
+.learning-feedback {
+  padding: 22px;
+  border-radius: 12px;
+  margin: 20px 0;
+  background: #edf4fe;
+}
+.learning-feedback.correct {
+  background: #e5f5ed;
+}
+.learning-feedback h2 {
+  font-size: 20px;
+  margin-bottom: 14px;
+}
+.learning-feedback p {
+  line-height: 1.8;
+  margin: 12px 0;
+  white-space: pre-wrap;
+}
+.learning-result {
+  padding: 22px;
+  background: white;
+  border-radius: 16px;
+  margin: 24px 0;
+}
+.learning-result h2 {
+  font-size: 21px;
+}
+.learning-result strong {
+  font-size: 42px;
+  display: block;
+  margin: 20px 0;
+}
+.learning-result strong small {
+  font-size: 16px;
+  font-weight: 400;
+}
+.learning-result details {
+  margin-top: 24px;
+}
+.learning-result .admin-question p {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+.learning-session .admin-alert {
+  margin-top: 16px;
+}
+@media (max-width: 700px) {
+  .drill-material-list {
+    grid-template-columns: 1fr;
+  }
+  .drill-filters .admin-field {
+    min-width: calc(50% - 14px);
+  }
+  .drill-dialog {
+    padding: 18px;
+  }
+  .drill-guide {
+    font-size: 12px;
+    gap: 8px;
+  }
+  .drill-bulk-bar .admin-button {
+    flex: 1;
+  }
+  .drill-material small {
+    overflow-wrap: anywhere;
+  }
+  .drill-filters select {
+    max-width: 100%;
+  }
+}
+
+.understanding-page h1 {font-size:clamp(1.35rem,5vw,1.8rem);line-height:1.4;}
+.understanding-page progress {display:block;width:100%;margin:12px 0;accent-color:#345eae;}
+.understanding-page .admin-actions {flex-wrap:wrap;}
+.drill-dialog fieldset { min-inline-size: 0; }
+.drill-dialog .admin-form-grid > * { min-width: 0; }
+.drill-dialog select { min-width: 0; max-width: 100%; }
